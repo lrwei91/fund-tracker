@@ -1,31 +1,34 @@
 // ==================== 数据获取配置 ====================
 const API_CONFIG = {
     // CORS代理服务列表（多个备用，解决跨域问题）
+    // 注意：东方财富API优先使用JSONP，这些代理作为最后备选
     corsProxies: [
-        'https://api.allorigins.win/raw?url=',
         'https://corsproxy.io/?url=',
-        'https://thingproxy.freeboard.io/fetch/'
+        'https://api.allorigins.win/raw?url=',
+        'https://thingproxy.freeboard.io/fetch/',
+        'https://cors-proxy.pondpilot.io/proxy?url=',
+        'https://api.codetabs.com/v1/proxy?quest='
     ],
     // 当前使用的代理索引
     currentProxyIndex: 0,
     
-    // 天天基金实时净值API (HTTPS版本，支持跨域)
+    // 天天基金实时净值API (HTTPS版本，支持跨域JSONP)
     fundRealtimeUrl: 'https://fundgz.1234567.com.cn/js/{code}.js?rt={timestamp}',
     
     // 东方财富历史净值API (HTTPS版本)
     fundHistoryUrl: 'https://fundf10.eastmoney.com/F10DataApi.aspx?type=lsjz&code={code}&page=1&sdate={start}&edate={end}&per=20',
     
-    // 东方财富大盘指数API (需要CORS代理)
+    // 东方财富大盘指数API (支持JSONP，添加cb参数即可跨域)
     indexUrl: 'https://push2.eastmoney.com/api/qt/ulist.np/get?fltt=2&secids={secids}&fields=f2,f3,f4,f5,f8,f12,f13,f14',
     
-    // 东方财富主力资金流向API (需要CORS代理)
+    // 东方财富主力资金流向API (支持JSONP)
     capitalFlowUrl: 'https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=10&po=1&np=1&fields=f12,f13,f14,f62&fid=f62&fs=m:90+t:2&ut=b2884a393a59ad64002292a3e90d46f5',
     
-    // 东方财富板块资金流向API (需要CORS代理)
+    // 东方财富板块资金流向API (支持JSONP)
     sectorFlowUrl: 'https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=50&po=1&np=1&fields=f12,f13,f14,f62&fid=f62&fs=m:90+t:2+f:!50&ut=b2884a393a59ad64002292a3e90d46f5',
     
-    // 东方财富新闻API (需要CORS代理)
-    newsUrl: 'https://newsapi.eastmoney.com/kuaixun/v1/getlist_102_AjaxHandler.ashx?type=0&pageindex=1&pagesize=20&_={timestamp}',
+    // 东方财富新闻API (支持JSONP)
+    newsUrl: 'https://newsapi.eastmoney.com/kuaixun/v1/getlist_102_AjaxHandler.ashx?type=0&pageindex=1&pagesize=20',
     
     // 新浪财经大盘API (备选)
     sinaIndexUrl: 'http://hq.sinajs.cn/list={codes}',
@@ -77,6 +80,47 @@ const DataCache = {
 
 // ==================== API调用工具 ====================
 const ApiService = {
+    // 使用JSONP获取数据（东方财富API原生支持，优先使用此方法）
+    fetchWithJSONP(url) {
+        return new Promise((resolve, reject) => {
+            const timestamp = Date.now();
+            const callbackName = `jsonp_callback_${timestamp}_${Math.random().toString(36).substr(2, 9)}`;
+            
+            // 设置超时
+            const timeout = setTimeout(() => {
+                cleanup();
+                reject(new Error('JSONP请求超时'));
+            }, 15000);
+            
+            // 清理函数
+            const cleanup = () => {
+                clearTimeout(timeout);
+                delete window[callbackName];
+                const script = document.getElementById(callbackName);
+                if (script) script.remove();
+            };
+            
+            // 创建JSONP回调
+            window[callbackName] = (data) => {
+                cleanup();
+                resolve(data);
+            };
+            
+            // 构造带cb参数的URL
+            const separator = url.includes('?') ? '&' : '?';
+            const jsonpUrl = `${url}${separator}cb=${callbackName}&_=${timestamp}`;
+            
+            const script = document.createElement('script');
+            script.id = callbackName;
+            script.src = jsonpUrl;
+            script.onerror = () => {
+                cleanup();
+                reject(new Error('JSONP请求失败'));
+            };
+            document.head.appendChild(script);
+        });
+    },
+    
     // 使用JSONP获取基金实时数据
     getFundRealtime(code) {
         return new Promise((resolve, reject) => {
@@ -205,8 +249,16 @@ const ApiService = {
         return `${y}-${m}-${d}`;
     },
     
-    // 使用CORS代理获取数据（支持多个代理自动切换）
+    // 使用CORS代理获取数据（支持多个代理自动切换，作为JSONP失败后的备选）
     async fetchWithCorsProxy(url) {
+        // 优先尝试JSONP
+        try {
+            const result = await this.fetchWithJSONP(url);
+            return result;
+        } catch (jsonpError) {
+            console.warn('JSONP请求失败，尝试使用CORS代理:', jsonpError.message);
+        }
+        
         // 尝试所有代理
         for (let i = 0; i < API_CONFIG.corsProxies.length; i++) {
             const proxyUrl = API_CONFIG.corsProxies[i] + encodeURIComponent(url);
@@ -250,7 +302,7 @@ const ApiService = {
 
 // ==================== 指数数据获取 ====================
 const IndexService = {
-    // 获取大盘指数实时数据（从东方财富API）
+    // 获取大盘指数实时数据（从东方财富API，使用JSONP）
     async getIndexData() {
         const cacheKey = 'index_data';
         const cached = DataCache.get(cacheKey);
@@ -261,7 +313,7 @@ const IndexService = {
             const secids = Object.values(API_CONFIG.indexCodes).join(',');
             const url = API_CONFIG.indexUrl.replace('{secids}', secids);
             
-            const response = await ApiService.fetchWithCorsProxy(url);
+            const response = await ApiService.fetchWithJSONP(url);
             
             // 如果返回null，表示API失败，使用静态数据
             if (!response) {
@@ -355,7 +407,7 @@ const CapitalFlowService = {
         
         try {
             const url = API_CONFIG.capitalFlowUrl;
-            const response = await ApiService.fetchWithCorsProxy(url);
+            const response = await ApiService.fetchWithJSONP(url);
             
             // API失败，返回null使用静态数据
             if (!response) return null;
@@ -393,7 +445,7 @@ const CapitalFlowService = {
         
         try {
             const url = API_CONFIG.sectorFlowUrl;
-            const response = await ApiService.fetchWithCorsProxy(url);
+            const response = await ApiService.fetchWithJSONP(url);
             
             // API失败，返回null使用静态数据
             if (!response) return null;
@@ -458,9 +510,8 @@ const NewsService = {
         if (cached) return cached;
         
         try {
-            const timestamp = Date.now();
-            const url = API_CONFIG.newsUrl.replace('{timestamp}', timestamp);
-            const response = await ApiService.fetchWithCorsProxy(url);
+            const url = API_CONFIG.newsUrl;
+            const response = await ApiService.fetchWithJSONP(url);
             
             // API失败，返回null使用静态数据
             if (!response) return null;
@@ -603,25 +654,8 @@ const DataManager = {
     },
     
     // 更新数据源信息
-    updateDataSourceInfo(status) {
-        const infoEl = document.getElementById('data-source-info');
-        if (!infoEl) return;
-        
-        if (status === 'success') {
-            infoEl.innerHTML = '📡 实时数据来源：东方财富API + 天天基金API';
-            infoEl.style.color = '#52c41a'; // 绿色
-        } else if (status === 'partial') {
-            infoEl.innerHTML = '⚠️ 部分数据使用本地缓存，基金数据实时更新';
-            infoEl.style.color = '#faad14'; // 黄色
-        } else {
-            infoEl.innerHTML = '📋 部分数据使用静态数据，基金数据实时更新（CORS代理不稳定）';
-            infoEl.style.color = '#fa8c16'; // 橙色
-        }
-    },
-    
-    // 获取单个基金数据
-    getFund(code) {
-        return this.realtimeFunds[code] || null;
+    updateDataSourceInfo() {
+        // 可以在这里添加数据来源的显示逻辑
     },
     
     // 获取指数数据
@@ -642,14 +676,25 @@ const DataManager = {
     // 获取新闻数据
     getNews() {
         return this.newsData;
+    },
+    
+    // 获取基金实时数据（兼容旧接口）
+    getFund(code) {
+        return this.realtimeFunds[code];
+    },
+    
+    // 获取基金实时数据
+    getFundRealtime(code) {
+        return this.realtimeFunds[code];
+    },
+    
+    // 获取所有基金数据
+    getAllFunds() {
+        return this.realtimeFunds;
     }
 };
 
-// 导出到全局
-window.DataManager = DataManager;
-window.ApiService = ApiService;
-window.IndexService = IndexService;
-window.CapitalFlowService = CapitalFlowService;
-window.NewsService = NewsService;
-window.DataCache = DataCache;
-window.API_CONFIG = API_CONFIG;
+// 导出模块（如果在模块环境中）
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = { API_CONFIG, DataCache, ApiService, IndexService, CapitalFlowService, NewsService, DataManager };
+}
