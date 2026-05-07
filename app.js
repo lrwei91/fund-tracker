@@ -63,6 +63,7 @@ function loadAllData() {
     loadIndexData();
     loadCapitalData();
     loadSectorData();
+    loadMultiDayFlowData(); // 新增多日资金数据加载
     loadNewsData();
     loadFundsData();
 }
@@ -166,6 +167,90 @@ function loadSectorData() {
     });
 }
 
+// ==================== 多日板块资金流向数据（新增） ====================
+function loadMultiDayFlowData() {
+    const multiDayFlow = SAMPLE_DATA.sectorMultiDayFlow;
+    if (!multiDayFlow) return;
+    
+    const container = document.getElementById('multiday-flow-container');
+    if (!container) return;
+    
+    const dates = multiDayFlow.dates;
+    
+    // 渲染流入板块多日数据
+    const inflowContainer = document.getElementById('multiday-inflow');
+    if (inflowContainer) {
+        inflowContainer.innerHTML = '';
+        
+        // 表头
+        const headerRow = document.createElement('tr');
+        headerRow.innerHTML = `
+            <th>板块名称</th>
+            ${dates.map(d => `<th>${d}</th>`).join('')}
+            <th>趋势</th>
+        `;
+        inflowContainer.appendChild(headerRow);
+        
+        // 数据行
+        multiDayFlow.inflowSectors.forEach(sector => {
+            const row = document.createElement('tr');
+            row.className = sector.consecutiveDays >= 3 ? 'hot-sector' : '';
+            
+            let tableHtml = `<td class="sector-name-cell">${sector.name}</td>`;
+            
+            sector.data.forEach((value, idx) => {
+                const isPositive = value.startsWith('+');
+                tableHtml += `<td class="${isPositive ? 'flow-positive' : 'flow-negative'}">${value}</td>`;
+            });
+            
+            // 趋势标识
+            const trendIcon = sector.trend === 'up' ? '📈' : '📉';
+            const consecutiveBadge = sector.consecutiveDays >= 3 ? 
+                `<span class="consecutive-badge">连续${sector.consecutiveDays}日流入</span>` : '';
+            
+            tableHtml += `<td class="trend-cell">${trendIcon} ${consecutiveBadge}</td>`;
+            
+            row.innerHTML = tableHtml;
+            inflowContainer.appendChild(row);
+        });
+    }
+    
+    // 渲染流出板块多日数据
+    const outflowContainer = document.getElementById('multiday-outflow');
+    if (outflowContainer) {
+        outflowContainer.innerHTML = '';
+        
+        const headerRow = document.createElement('tr');
+        headerRow.innerHTML = `
+            <th>板块名称</th>
+            ${dates.map(d => `<th>${d}</th>`).join('')}
+            <th>趋势</th>
+        `;
+        outflowContainer.appendChild(headerRow);
+        
+        multiDayFlow.outflowSectors.forEach(sector => {
+            const row = document.createElement('tr');
+            row.className = sector.consecutiveDays >= 3 ? 'cold-sector' : '';
+            
+            let tableHtml = `<td class="sector-name-cell">${sector.name}</td>`;
+            
+            sector.data.forEach((value, idx) => {
+                const isPositive = value.startsWith('+');
+                tableHtml += `<td class="${isPositive ? 'flow-positive' : 'flow-negative'}">${value}</td>`;
+            });
+            
+            const trendIcon = sector.trend === 'up' ? '📈' : '📉';
+            const consecutiveBadge = sector.consecutiveDays >= 3 ? 
+                `<span class="consecutive-badge outflow">连续${sector.consecutiveDays}日流出</span>` : '';
+            
+            tableHtml += `<td class="trend-cell">${trendIcon} ${consecutiveBadge}</td>`;
+            
+            row.innerHTML = tableHtml;
+            outflowContainer.appendChild(row);
+        });
+    }
+}
+
 // ==================== 财经新闻数据 ====================
 function loadNewsData() {
     const newsList = document.getElementById('realtime-news');
@@ -181,12 +266,22 @@ function loadNewsData() {
             item.classList.add('negative-news');
         }
         
+        // 数据标签HTML
+        const dataTagsHtml = news.dataPoints && news.dataPoints.length > 0 ? 
+            `<div class="news-data-tags">${news.dataPoints.map(d => `<span class="data-tag">${d}</span>`).join('')}</div>` : '';
+        
+        // 相关板块HTML
+        const sectorsHtml = news.relatedSectors && news.relatedSectors.length > 0 ? 
+            `<div class="news-sectors">相关板块：${news.relatedSectors.join('、')}</div>` : '';
+        
         item.innerHTML = `
             <div class="news-header">
                 <span class="news-title">${news.title}</span>
                 <span class="news-time">${news.time}</span>
             </div>
+            ${dataTagsHtml}
             <div class="news-summary">${news.summary}</div>
+            ${sectorsHtml}
         `;
         
         item.addEventListener('click', function() {
@@ -211,14 +306,38 @@ function loadFundsData() {
         const changeClass = fund.changePercent > 0 ? 'positive' : 
                            fund.changePercent < 0 ? 'negative' : 'neutral';
         
+        // 分类标签颜色
+        const categoryColors = {
+            '科技主题': 'tech',
+            '红利策略': 'dividend',
+            '宽基指数': 'broad',
+            '行业ETF': 'sector'
+        };
+        const categoryClass = categoryColors[fund.category] || 'default';
+        
+        // 核心催化剂标签
+        const catalystsHtml = fund.keyCatalysts && fund.keyCatalysts.length > 0 ? 
+            `<div class="fund-catalysts">
+                ${fund.keyCatalysts.map(c => `<span class="catalyst-tag">${c}</span>`).join('')}
+            </div>` : '';
+        
         card.innerHTML = `
             <div class="fund-header">
-                <span class="fund-name">${fund.name}</span>
+                <div class="fund-title-row">
+                    <span class="fund-name">${fund.name}</span>
+                    <span class="fund-category ${categoryClass}">${fund.category}</span>
+                </div>
                 <span class="fund-change ${changeClass}">${fund.change}</span>
             </div>
             <div class="fund-meta">
-                <span>${fund.code}</span>
-                <span>${fund.value}</span>
+                <span class="fund-code">${fund.code}</span>
+                <span class="fund-value">净值：${fund.value}</span>
+            </div>
+            <div class="fund-performance">近期表现：${fund.recentPerformance}</div>
+            ${catalystsHtml}
+            <div class="fund-reason">
+                <div class="reason-title">📊 推荐逻辑</div>
+                <div class="reason-content">${fund.recommendReason}</div>
             </div>
         `;
         

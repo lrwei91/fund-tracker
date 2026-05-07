@@ -1,4 +1,4 @@
-/* ==================== 基础样式 ==================== */
+/* ==================== 全局样式 ==================== */
 * {
     margin: 0;
     padding: 0;
@@ -7,193 +7,202 @@
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     min-height: 100vh;
-    color: #e0e0e0;
-    line-height: 1.6;
-}
-
-.container {
-    max-width: 1000px;
-    margin: 0 auto;
     padding: 20px;
 }
 
-/* ==================== 颜色变量 - 红涨绿跌 ==================== */
-:root {
-    --positive: #e64340;
-    --negative: #09bb07;
-    --neutral: #999;
-    --card-bg: rgba(255, 255, 255, 0.05);
-    --card-border: rgba(255, 255, 255, 0.1);
-    --text-primary: #fff;
-    --text-secondary: #aaa;
+.container {
+    max-width: 1400px;
+    margin: 0 auto;
 }
 
 /* ==================== 头部样式 ==================== */
 .header {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 16px;
+    padding: 20px 30px;
+    margin-bottom: 20px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 20px 0;
-    border-bottom: 1px solid var(--card-border);
-    margin-bottom: 24px;
-    flex-wrap: wrap;
-    gap: 16px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
 
 .header h1 {
-    font-size: 1.8rem;
-    background: linear-gradient(90deg, #e64340, #ffd700);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    font-size: 28px;
+    color: #333;
+    font-weight: 700;
 }
 
 .update-info {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 12px;
+    gap: 15px;
+    color: #666;
+    font-size: 14px;
 }
 
 .refresh-btn {
-    background: linear-gradient(135deg, #4a9eff, #2d7dd2);
-    border: none;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
-    padding: 6px 14px;
-    border-radius: 20px;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
     cursor: pointer;
-    font-size: 0.85rem;
-    transition: all 0.3s;
+    font-size: 14px;
+    transition: transform 0.2s, box-shadow 0.2s;
 }
 
 .refresh-btn:hover {
-    transform: scale(1.05);
-    box-shadow: 0 4px 12px rgba(74, 158, 255, 0.4);
-}
-
-.auto-refresh {
-    display: flex;
-    align-items: center;
-    font-size: 0.85rem;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 
 .auto-refresh label {
-    display: flex;
-    align-items: center;
     cursor: pointer;
-}
-
-.auto-refresh input[type="checkbox"] {
-    margin-right: 4px;
 }
 
 .auto-refresh select {
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid var(--card-border);
-    color: var(--text-primary);
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 0.8rem;
-    cursor: pointer;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid #ddd;
+    font-size: 13px;
 }
 
-/* ==================== 卡片样式 ==================== */
+/* ==================== 卡片通用样式 ==================== */
 .card {
-    background: var(--card-bg);
-    border: 1px solid var(--card-border);
-    border-radius: 12px;
-    padding: 20px;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 16px;
+    padding: 25px;
     margin-bottom: 20px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
     backdrop-filter: blur(10px);
 }
 
 .card h2 {
-    font-size: 1.2rem;
-    margin-bottom: 16px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid var(--card-border);
+    font-size: 20px;
+    color: #333;
+    margin-bottom: 20px;
+    font-weight: 600;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #f0f0f0;
 }
 
-.card h4 {
-    font-size: 0.95rem;
-    margin-bottom: 12px;
-}
-
-/* ==================== 颜色类 ==================== */
-.positive { color: var(--positive) !important; }
-.negative { color: var(--negative) !important; }
-.neutral { color: var(--neutral) !important; }
-
-/* ==================== 大盘指数 ==================== */
+/* ==================== 大盘指数样式 ==================== */
 .index-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
 }
 
 .index-item {
-    background: rgba(255, 255, 255, 0.03);
-    border-radius: 10px;
-    padding: 16px;
+    background: linear-gradient(135deg, #f5f7fa 0%, #e4e8eb 100%);
+    border-radius: 12px;
+    padding: 20px;
     text-align: center;
+    transition: transform 0.3s;
+}
+
+.index-item:hover {
+    transform: translateY(-5px);
 }
 
 .index-name {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    margin-bottom: 6px;
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 10px;
 }
 
 .index-value {
-    font-size: 1.5rem;
-    font-weight: bold;
-    margin-bottom: 2px;
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 5px;
+}
+
+.index-value.positive {
+    color: #e74c3c;
+}
+
+.index-value.negative {
+    color: #27ae60;
+}
+
+.index-value.neutral {
+    color: #666;
 }
 
 .index-change {
-    font-size: 0.9rem;
+    font-size: 14px;
+    font-weight: 500;
 }
 
-/* ==================== 资金流向 ==================== */
+.index-change.positive {
+    color: #e74c3c;
+}
+
+.index-change.negative {
+    color: #27ae60;
+}
+
+.index-change.neutral {
+    color: #666;
+}
+
+/* ==================== 资金流向样式 ==================== */
 .capital-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
 }
 
 .capital-item {
-    background: rgba(255, 255, 255, 0.03);
-    border-radius: 10px;
-    padding: 16px;
+    background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+    border-radius: 12px;
+    padding: 25px;
     text-align: center;
 }
 
 .capital-label {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    margin-bottom: 6px;
+    font-size: 16px;
+    color: #8b4513;
+    margin-bottom: 10px;
+    font-weight: 500;
 }
 
 .capital-value {
-    font-size: 1.5rem;
-    font-weight: bold;
+    font-size: 32px;
+    font-weight: 700;
 }
 
-/* ==================== 板块排行 ==================== */
+.capital-value.positive {
+    color: #e74c3c;
+}
+
+.capital-value.negative {
+    color: #27ae60;
+}
+
+/* ==================== 板块排行样式 ==================== */
 .sector-flow-container {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 16px;
+    gap: 30px;
 }
 
-@media (max-width: 600px) {
-    .sector-flow-container {
-        grid-template-columns: 1fr;
-    }
+.sector-flow h4 {
+    font-size: 16px;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+}
+
+.sector-flow h4.positive {
+    color: #e74c3c;
+}
+
+.sector-flow h4.negative {
+    color: #27ae60;
 }
 
 .sector-list {
@@ -204,166 +213,462 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 8px 10px;
-    background: rgba(255, 255, 255, 0.02);
-    border-radius: 6px;
-    margin-bottom: 6px;
-    font-size: 0.85rem;
+    padding: 12px 0;
+    border-bottom: 1px solid #f5f5f5;
+    font-size: 14px;
 }
 
-.sector-list .sector-name {
-    flex: 1;
+.sector-list li:last-child {
+    border-bottom: none;
 }
 
-.sector-list .sector-amount {
-    font-weight: bold;
-    margin-left: 8px;
+.sector-name {
+    color: #333;
+    font-weight: 500;
 }
 
-/* ==================== 财经新闻 ==================== */
-.news-list {
+.sector-amount.positive {
+    color: #e74c3c;
+    font-weight: 600;
+}
+
+.sector-amount.negative {
+    color: #27ae60;
+    font-weight: 600;
+}
+
+/* ==================== 多日资金流向样式（新增） ==================== */
+.multiday-flow-section {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 249, 250, 0.98) 100%);
+}
+
+.multiday-container {
     display: grid;
-    gap: 10px;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+}
+
+.multiday-table-wrapper {
+    overflow-x: auto;
+}
+
+.table-title {
+    font-size: 16px;
+    margin-bottom: 15px;
+    padding: 10px 15px;
+    border-radius: 8px;
+    font-weight: 600;
+}
+
+.table-title.positive {
+    background: linear-gradient(135deg, #fff5f5 0%, #ffe8e8 100%);
+    color: #e74c3c;
+}
+
+.table-title.negative {
+    background: linear-gradient(135deg, #f0fff4 0%, #e6ffed 100%);
+    color: #27ae60;
+}
+
+.multiday-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.multiday-table th {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 12px 10px;
+    text-align: center;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+}
+
+.multiday-table th:first-child {
+    border-radius: 8px 0 0 0;
+}
+
+.multiday-table th:last-child {
+    border-radius: 0 8px 0 0;
+}
+
+.multiday-table td {
+    padding: 10px;
+    text-align: center;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.multiday-table tr:hover {
+    background: #f8f9fa;
+}
+
+.multiday-table tr.hot-sector {
+    background: linear-gradient(90deg, rgba(231, 76, 60, 0.08) 0%, transparent 100%);
+    border-left: 3px solid #e74c3c;
+}
+
+.multiday-table tr.cold-sector {
+    background: linear-gradient(90deg, rgba(39, 174, 96, 0.08) 0%, transparent 100%);
+    border-left: 3px solid #27ae60;
+}
+
+.sector-name-cell {
+    font-weight: 600;
+    color: #333;
+    text-align: left !important;
+}
+
+.flow-positive {
+    color: #e74c3c;
+    font-weight: 600;
+}
+
+.flow-negative {
+    color: #27ae60;
+    font-weight: 600;
+}
+
+.trend-cell {
+    font-size: 16px;
+}
+
+.consecutive-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+    color: white;
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 5px;
+    animation: pulse 2s infinite;
+}
+
+.consecutive-badge.outflow {
+    background: linear-gradient(135deg, #27ae60 0%, #1e8449 100%);
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+/* ==================== 财经新闻样式 ==================== */
+.news-list {
+    max-height: 600px;
+    overflow-y: auto;
 }
 
 .news-item {
-    background: rgba(255, 255, 255, 0.02);
-    border-radius: 8px;
-    padding: 12px 14px;
-    border-left: 3px solid var(--neutral);
+    padding: 18px;
+    border-radius: 10px;
+    margin-bottom: 15px;
+    background: #f8f9fa;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: all 0.3s;
+    border-left: 4px solid #ddd;
 }
 
 .news-item:hover {
-    background: rgba(255, 255, 255, 0.04);
+    transform: translateX(5px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .news-item.positive-news {
-    border-left-color: var(--positive);
+    border-left-color: #e74c3c;
+    background: linear-gradient(135deg, #fff5f5 0%, #ffffff 100%);
 }
 
 .news-item.negative-news {
-    border-left-color: var(--negative);
+    border-left-color: #27ae60;
+    background: linear-gradient(135deg, #f0fff4 0%, #ffffff 100%);
 }
 
 .news-header {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 6px;
+    margin-bottom: 10px;
 }
 
 .news-title {
-    font-size: 0.9rem;
-    font-weight: 500;
+    font-size: 15px;
+    font-weight: 600;
+    color: #333;
+    line-height: 1.4;
     flex: 1;
+    margin-right: 15px;
 }
 
 .news-time {
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-    margin-left: 10px;
+    font-size: 12px;
+    color: #999;
     white-space: nowrap;
 }
 
-.news-summary {
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-    line-height: 1.5;
+.news-data-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
 }
 
-/* ==================== 基金数据 ==================== */
+.data-tag {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.news-summary {
+    font-size: 13px;
+    color: #666;
+    line-height: 1.6;
+    margin-bottom: 8px;
+}
+
+.news-sectors {
+    font-size: 12px;
+    color: #888;
+    font-style: italic;
+}
+
+/* ==================== 基金卡片样式 ==================== */
 .funds-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 20px;
 }
 
 .fund-card {
-    background: rgba(255, 255, 255, 0.03);
-    border-radius: 10px;
-    padding: 14px;
-    cursor: pointer;
-    transition: transform 0.2s;
+    background: linear-gradient(135deg, #fafbfc 0%, #f5f7fa 100%);
+    border-radius: 14px;
+    padding: 20px;
+    border: 1px solid #e8e8e8;
+    transition: all 0.3s;
 }
 
 .fund-card:hover {
-    transform: translateY(-2px);
+    transform: translateY(-5px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+    border-color: #667eea;
 }
 
 .fund-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
+    align-items: flex-start;
+    margin-bottom: 12px;
+}
+
+.fund-title-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
 }
 
 .fund-name {
-    font-size: 0.9rem;
-    font-weight: 500;
+    font-size: 16px;
+    font-weight: 700;
+    color: #333;
+}
+
+.fund-category {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    width: fit-content;
+}
+
+.fund-category.tech {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.fund-category.dividend {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: white;
+}
+
+.fund-category.broad {
+    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    color: white;
+}
+
+.fund-category.sector {
+    background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+    color: white;
 }
 
 .fund-change {
-    font-size: 0.95rem;
-    font-weight: bold;
+    font-size: 20px;
+    font-weight: 700;
+    padding: 5px 12px;
+    border-radius: 8px;
+}
+
+.fund-change.positive {
+    color: #e74c3c;
+    background: rgba(231, 76, 60, 0.1);
+}
+
+.fund-change.negative {
+    color: #27ae60;
+    background: rgba(39, 174, 96, 0.1);
+}
+
+.fund-change.neutral {
+    color: #666;
+    background: rgba(102, 102, 102, 0.1);
 }
 
 .fund-meta {
     display: flex;
-    justify-content: space-between;
-    font-size: 0.8rem;
-    color: var(--text-secondary);
+    gap: 20px;
+    font-size: 13px;
+    color: #888;
+    margin-bottom: 10px;
 }
 
-/* ==================== 页脚 ==================== */
+.fund-code {
+    font-family: 'Consolas', monospace;
+    background: #f0f0f0;
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.fund-performance {
+    font-size: 13px;
+    color: #666;
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    background: #fff;
+    border-radius: 6px;
+    border-left: 3px solid #667eea;
+}
+
+.fund-catalysts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.catalyst-tag {
+    background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+    color: #8b4513;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.fund-reason {
+    background: white;
+    border-radius: 10px;
+    padding: 12px;
+    border: 1px solid #eee;
+}
+
+.reason-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 8px;
+}
+
+.reason-content {
+    font-size: 12px;
+    color: #666;
+    line-height: 1.7;
+    text-align: justify;
+    max-height: 180px;
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+.reason-content::-webkit-scrollbar {
+    width: 4px;
+}
+
+.reason-content::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 2px;
+}
+
+.reason-content::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 2px;
+}
+
+/* ==================== 页脚样式 ==================== */
 .footer {
     text-align: center;
-    padding: 24px 0;
-    border-top: 1px solid var(--card-border);
-    margin-top: 20px;
+    padding: 25px;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 13px;
+    line-height: 1.8;
 }
 
-.footer p {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-    margin-bottom: 6px;
-}
-
-.footer .data-source {
-    font-size: 0.8rem;
-}
-
-/* ==================== 响应式 ==================== */
-@media (max-width: 768px) {
-    .header {
-        flex-direction: column;
-        text-align: center;
+/* ==================== 响应式适配 ==================== */
+@media (max-width: 1024px) {
+    .sector-flow-container {
+        grid-template-columns: 1fr;
     }
     
-    .index-grid, .capital-grid {
-        grid-template-columns: 1fr 1fr;
-    }
-    
-    .index-value, .capital-value {
-        font-size: 1.3rem;
+    .multiday-container {
+        grid-template-columns: 1fr;
     }
     
     .funds-grid {
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     }
 }
 
-@media (max-width: 480px) {
-    .container {
-        padding: 12px;
+@media (max-width: 768px) {
+    body {
+        padding: 10px;
     }
     
-    .card {
-        padding: 16px;
+    .header {
+        flex-direction: column;
+        gap: 15px;
+        text-align: center;
+    }
+    
+    .update-info {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    
+    .index-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .capital-grid {
+        grid-template-columns: 1fr;
     }
     
     .funds-grid {
         grid-template-columns: 1fr;
+    }
+    
+    .card {
+        padding: 15px;
+    }
+    
+    .multiday-table {
+        font-size: 11px;
+    }
+    
+    .multiday-table th,
+    .multiday-table td {
+        padding: 8px 5px;
     }
 }
