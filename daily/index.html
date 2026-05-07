@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>投资日报 - 每日财经快讯</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 顶部标题 -->
+        <header class="header">
+            <h1>📊 投资日报</h1>
+            <p class="date" id="currentDate">加载中...</p>
+        </header>
+
+        <!-- 第一部分：每日财经新闻 -->
+        <section class="section">
+            <h2 class="section-title">📰 每日财经新闻</h2>
+            <div id="newsContainer" class="news-container">
+                <div class="loading">正在加载新闻...</div>
+            </div>
+        </section>
+
+        <!-- 第二部分：今日利好板块 -->
+        <section class="section">
+            <h2 class="section-title">💹 今日利好板块</h2>
+            <div id="sectorContainer" class="sector-container">
+                <div class="loading">正在加载板块数据...</div>
+            </div>
+        </section>
+
+        <!-- 第三部分：基金推荐 -->
+        <section class="section">
+            <h2 class="section-title">💰 基金推荐</h2>
+            <div id="fundContainer" class="fund-container">
+                <div class="loading">正在加载基金数据...</div>
+            </div>
+        </section>
+
+        <!-- 页脚 -->
+        <footer class="footer">
+            <p>数据来源：东方财富网、天天基金网 | 数据仅供参考，不构成投资建议</p>
+            <p class="update-time">最后更新：<span id="updateTime">--</span></p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
