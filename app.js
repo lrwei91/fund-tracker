@@ -65,7 +65,8 @@ function loadAllData() {
     loadSectorData();
     loadMultiDayFlowData(); // 新增多日资金数据加载
     loadNewsData();
-    loadFundsData();
+    loadActiveFundsData(); // 主动管理型基金
+    loadEtfData(); // ETF基金
 }
 
 function updateTime() {
@@ -294,26 +295,39 @@ function loadNewsData() {
     });
 }
 
-// ==================== 基金数据 ====================
-function loadFundsData() {
-    const fundsList = document.getElementById('funds-list');
+// ==================== 主动管理型基金数据 ====================
+function loadActiveFundsData() {
+    const fundsList = document.getElementById('active-funds-list');
+    if (!fundsList) return;
     fundsList.innerHTML = '';
     
-    SAMPLE_DATA.funds.slice(0, 8).forEach(fund => {
+    SAMPLE_DATA.activeFunds.slice(0, 8).forEach(fund => {
         const card = document.createElement('div');
-        card.className = 'fund-card';
+        card.className = 'fund-card active-fund-card';
         
         const changeClass = fund.changePercent > 0 ? 'positive' : 
                            fund.changePercent < 0 ? 'negative' : 'neutral';
         
         // 分类标签颜色
         const categoryColors = {
-            '科技主题': 'tech',
-            '红利策略': 'dividend',
-            '宽基指数': 'broad',
-            '行业ETF': 'sector'
+            '偏股混合型': 'equity',
+            '灵活配置型': 'flexible',
+            '普通股票型': 'stock',
+            '长期纯债型': 'bond',
+            '可转债型': 'convertible',
+            '混合型': 'mixed'
         };
         const categoryClass = categoryColors[fund.category] || 'default';
+        
+        // 风险等级颜色
+        const riskColors = {
+            '低风险': 'risk-low',
+            '中低风险': 'risk-lowmid',
+            '中风险': 'risk-mid',
+            '中高风险': 'risk-midhigh',
+            '高风险': 'risk-high'
+        };
+        const riskClass = riskColors[fund.riskLevel] || 'risk-mid';
         
         // 核心催化剂标签
         const catalystsHtml = fund.keyCatalysts && fund.keyCatalysts.length > 0 ? 
@@ -326,18 +340,87 @@ function loadFundsData() {
                 <div class="fund-title-row">
                     <span class="fund-name">${fund.name}</span>
                     <span class="fund-category ${categoryClass}">${fund.category}</span>
+                    <span class="fund-risk ${riskClass}">${fund.riskLevel}</span>
                 </div>
                 <span class="fund-change ${changeClass}">${fund.change}</span>
             </div>
             <div class="fund-meta">
-                <span class="fund-code">${fund.code}</span>
+                <span class="fund-code">代码：${fund.code}</span>
+                <span class="fund-manager">经理：${fund.fundManager}</span>
+                <span class="fund-scale">规模：${fund.fundScale}</span>
                 <span class="fund-value">净值：${fund.value}</span>
             </div>
-            <div class="fund-performance">近期表现：${fund.recentPerformance}</div>
+            <div class="fund-performance">业绩表现：${fund.recentPerformance}</div>
             ${catalystsHtml}
             <div class="fund-reason">
                 <div class="reason-title">📊 推荐逻辑</div>
                 <div class="reason-content">${fund.recommendReason}</div>
+            </div>
+        `;
+        
+        fundsList.appendChild(card);
+    });
+}
+
+// ==================== ETF基金数据 ====================
+function loadEtfData() {
+    const fundsList = document.getElementById('etf-list');
+    if (!fundsList) return;
+    fundsList.innerHTML = '';
+    
+    SAMPLE_DATA.etfFunds.slice(0, 8).forEach(etf => {
+        const card = document.createElement('div');
+        card.className = 'fund-card etf-card';
+        
+        const changeClass = etf.changePercent > 0 ? 'positive' : 
+                           etf.changePercent < 0 ? 'negative' : 'neutral';
+        
+        // 分类标签颜色
+        const categoryColors = {
+            '宽基指数': 'broad',
+            '行业主题': 'sector',
+            '策略指数': 'strategy',
+            '跨境指数': 'global',
+            '商品指数': 'commodity'
+        };
+        const categoryClass = categoryColors[etf.category] || 'default';
+        
+        // 风险等级颜色
+        const riskColors = {
+            '低风险': 'risk-low',
+            '中低风险': 'risk-lowmid',
+            '中风险': 'risk-mid',
+            '中高风险': 'risk-midhigh',
+            '高风险': 'risk-high'
+        };
+        const riskClass = riskColors[etf.riskLevel] || 'risk-mid';
+        
+        // 核心催化剂标签
+        const catalystsHtml = etf.keyCatalysts && etf.keyCatalysts.length > 0 ? 
+            `<div class="fund-catalysts">
+                ${etf.keyCatalysts.map(c => `<span class="catalyst-tag">${c}</span>`).join('')}
+            </div>` : '';
+        
+        card.innerHTML = `
+            <div class="fund-header">
+                <div class="fund-title-row">
+                    <span class="fund-name">${etf.name}</span>
+                    <span class="fund-category ${categoryClass}">${etf.category}</span>
+                    <span class="fund-risk ${riskClass}">${etf.riskLevel}</span>
+                </div>
+                <span class="fund-change ${changeClass}">${etf.change}</span>
+            </div>
+            <div class="fund-meta">
+                <span class="fund-code">代码：${etf.code}</span>
+                <span class="fund-scale">规模：${etf.fundScale}</span>
+                <span class="fund-tracking">跟踪误差：${etf.trackingError}</span>
+                <span class="fund-value">净值：${etf.value}</span>
+            </div>
+            <div class="fund-performance">近期表现：${etf.recentPerformance}</div>
+            ${catalystsHtml}
+            <div class="fund-reason">
+                <div class="reason-title">📊 推荐逻辑</div>
+                <div class="reason-content">${etf.recommendReason}</div>
             </div>
         `;
         

@@ -471,6 +471,10 @@ body {
     gap: 6px;
 }
 
+.fund-title-row .fund-category {
+    margin-right: 6px;
+}
+
 .fund-name {
     font-size: 16px;
     font-weight: 700;
@@ -506,6 +510,99 @@ body {
     color: white;
 }
 
+/* 主动基金分类颜色 */
+.fund-category.equity {
+    background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+    color: white;
+}
+
+.fund-category.flexible {
+    background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%);
+    color: white;
+}
+
+.fund-category.stock {
+    background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
+    color: white;
+}
+
+.fund-category.bond {
+    background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%);
+    color: white;
+}
+
+.fund-category.convertible {
+    background: linear-gradient(135deg, #1abc9c 0%, #16a085 100%);
+    color: white;
+}
+
+.fund-category.mixed {
+    background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+    color: white;
+}
+
+/* ETF分类颜色 */
+.fund-category.strategy {
+    background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+    color: white;
+}
+
+.fund-category.global {
+    background: linear-gradient(135deg, #34495e 0%, #2c3e50 100%);
+    color: white;
+}
+
+.fund-category.commodity {
+    background: linear-gradient(135deg, #d35400 0%, #a04000 100%);
+    color: white;
+}
+
+/* 风险等级标签 */
+.fund-risk {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+    width: fit-content;
+}
+
+.fund-risk.risk-low {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+.fund-risk.risk-lowmid {
+    background: #f1f8e9;
+    color: #558b2f;
+}
+
+.fund-risk.risk-mid {
+    background: #fff8e1;
+    color: #f57f17;
+}
+
+.fund-risk.risk-midhigh {
+    background: #fff3e0;
+    color: #e65100;
+}
+
+.fund-risk.risk-high {
+    background: #ffebee;
+    color: #c62828;
+}
+
+/* 板块介绍 */
+.section-intro {
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 18px;
+    padding: 10px 15px;
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-radius: 8px;
+    border-left: 4px solid #667eea;
+}
+
 .fund-change {
     font-size: 20px;
     font-weight: 700;
@@ -530,10 +627,17 @@ body {
 
 .fund-meta {
     display: flex;
-    gap: 20px;
-    font-size: 13px;
+    flex-wrap: wrap;
+    gap: 10px 15px;
+    font-size: 12px;
     color: #888;
     margin-bottom: 10px;
+}
+
+.fund-meta span {
+    background: #f5f5f5;
+    padding: 3px 8px;
+    border-radius: 4px;
 }
 
 .fund-code {
@@ -541,6 +645,21 @@ body {
     background: #f0f0f0;
     padding: 2px 8px;
     border-radius: 4px;
+}
+
+.fund-manager {
+    background: #e3f2fd !important;
+    color: #1976d2;
+}
+
+.fund-scale {
+    background: #f3e5f5 !important;
+    color: #7b1fa2;
+}
+
+.fund-tracking {
+    background: #e8f5e9 !important;
+    color: #388e3c;
 }
 
 .fund-performance {
