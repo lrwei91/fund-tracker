@@ -2,9 +2,13 @@
 let refreshInterval = null;
 let isAutoRefresh = true;
 let refreshSeconds = 60;
+let watchlist = [];
 
 // ==================== 初始化 ====================
 document.addEventListener('DOMContentLoaded', function() {
+    initTabs();
+    initCollapsibleCards();
+    initWatchlist();
     initAutoRefresh();
     bindEvents();
     loadAllData();
@@ -12,13 +16,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // ==================== 事件绑定 ====================
 function bindEvents() {
-    // 刷新按钮
-    document.getElementById('refresh-btn').addEventListener('click', function() {
+    const refreshBtn = document.getElementById('refresh-btn');
+    const autoRefreshToggle = document.getElementById('auto-refresh-toggle');
+    const refreshIntervalSelect = document.getElementById('refresh-interval');
+    const watchlistAddBtn = document.getElementById('watchlist-add-btn');
+    const watchlistInput = document.getElementById('watchlist-input');
+
+    refreshBtn.addEventListener('click', function() {
         loadAllData();
     });
 
-    // 自动刷新开关
-    document.getElementById('auto-refresh-toggle').addEventListener('change', function(e) {
+    autoRefreshToggle.addEventListener('change', function(e) {
         isAutoRefresh = e.target.checked;
         if (isAutoRefresh) {
             startAutoRefresh();
@@ -27,12 +35,59 @@ function bindEvents() {
         }
     });
 
-    // 刷新间隔选择
-    document.getElementById('refresh-interval').addEventListener('change', function(e) {
+    refreshIntervalSelect.addEventListener('change', function(e) {
         refreshSeconds = parseInt(e.target.value);
         if (isAutoRefresh) {
             startAutoRefresh();
         }
+    });
+
+    watchlistAddBtn.addEventListener('click', addWatchlistItem);
+    watchlistInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            addWatchlistItem();
+        }
+    });
+}
+
+// ==================== 页面交互 ====================
+function initTabs() {
+    document.querySelectorAll('.tab-btn').forEach(button => {
+        button.addEventListener('click', () => {
+            const targetId = button.dataset.tab;
+            if (!targetId) return;
+
+            document.querySelectorAll('.tab-btn').forEach(tab => {
+                const isActive = tab === button;
+                tab.classList.toggle('active', isActive);
+                tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+            });
+
+            document.querySelectorAll('.tab-panel').forEach(panel => {
+                panel.classList.toggle('active', panel.id === targetId);
+            });
+        });
+    });
+}
+
+function initCollapsibleCards() {
+    document.querySelectorAll('.card-header').forEach(header => {
+        const toggleCard = () => {
+            const card = header.closest('.card');
+            if (!card) return;
+
+            const isCollapsed = card.dataset.collapsed === 'true';
+            card.dataset.collapsed = isCollapsed ? 'false' : 'true';
+            header.setAttribute('aria-expanded', isCollapsed ? 'true' : 'false');
+        };
+
+        header.addEventListener('click', toggleCard);
+        header.addEventListener('keydown', event => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                toggleCard();
+            }
+        });
     });
 }
 
@@ -62,16 +117,15 @@ function loadAllData() {
     updateTime();
     loadIndexData();
     loadCapitalData();
+    loadWatchlistData();
     loadSectorData();
-    loadMultiDayFlowData(); // 新增多日资金数据加载
+    loadMultiDayFlowData();
     loadNewsData();
-    loadActiveFundsData(); // 主动管理型基金
-    loadEtfData(); // ETF基金
 }
 
 function updateTime() {
-    const now = new Date();
-    const timeStr = now.toLocaleString('zh-CN', {
+    const sourceTime = typeof DATA_UPDATE_TIME !== 'undefined' ? DATA_UPDATE_TIME : '';
+    const timeStr = new Date().toLocaleString('zh-CN', {
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',
@@ -79,7 +133,7 @@ function updateTime() {
         minute: '2-digit',
         second: '2-digit'
     });
-    document.getElementById('update-time').textContent = `最后更新：${timeStr}`;
+    document.getElementById('update-time').textContent = sourceTime ? `数据时间：${sourceTime}` : `最后更新：${timeStr}`;
 }
 
 // ==================== 大盘指数数据 ====================
@@ -112,30 +166,139 @@ function loadIndexData() {
     });
 }
 
+// ==================== 自选股数据 ====================
+function initWatchlist() {
+    const saved = localStorage.getItem('investmentDashboardWatchlist');
+    if (saved) {
+        try {
+            watchlist = JSON.parse(saved);
+        } catch (e) {
+            watchlist = [];
+        }
+    }
+
+    if (!Array.isArray(watchlist) || watchlist.length === 0) {
+        watchlist = [...SAMPLE_DATA.watchlist];
+    }
+}
+
+function saveWatchlist() {
+    localStorage.setItem('investmentDashboardWatchlist', JSON.stringify(watchlist));
+}
+
+function loadWatchlistData() {
+    const grid = document.getElementById('watchlist-grid');
+    if (!grid) return;
+
+    grid.innerHTML = '';
+
+    if (watchlist.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'watchlist-empty';
+        empty.textContent = '暂无自选股，可输入代码或名称添加。';
+        grid.appendChild(empty);
+        return;
+    }
+
+    watchlist.forEach(stock => {
+        const item = document.createElement('div');
+        item.className = 'watchlist-item';
+
+        const changeClass = stock.changePercent > 0 ? 'positive' :
+            stock.changePercent < 0 ? 'negative' : 'neutral';
+        const changePrefix = stock.changePercent > 0 ? '+' : '';
+
+        item.innerHTML = `
+            <div class="watchlist-item-main">
+                <div class="watchlist-stock-name">${stock.name}</div>
+                <div class="watchlist-stock-code">${stock.code}</div>
+            </div>
+            <div class="watchlist-stock-price ${changeClass}">${stock.price}</div>
+            <div class="watchlist-stock-change ${changeClass}">
+                <span>${changePrefix}${stock.changePercent.toFixed(2)}%</span>
+            </div>
+            <button class="watchlist-remove-btn" type="button" data-code="${stock.code}" aria-label="删除${stock.name}">删除</button>
+        `;
+
+        grid.appendChild(item);
+    });
+
+    grid.querySelectorAll('.watchlist-remove-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            watchlist = watchlist.filter(stock => stock.code !== button.dataset.code);
+            saveWatchlist();
+            setWatchlistStatus('已删除自选股。');
+            loadWatchlistData();
+        });
+    });
+}
+
+function addWatchlistItem() {
+    const input = document.getElementById('watchlist-input');
+    const keyword = input.value.trim();
+    if (!keyword) {
+        setWatchlistStatus('请输入股票代码或名称。', true);
+        return;
+    }
+
+    const stock = SAMPLE_DATA.stockPool.find(item =>
+        item.code.toLowerCase() === keyword.toLowerCase() ||
+        item.name.toLowerCase() === keyword.toLowerCase()
+    ) || createManualStock(keyword);
+
+    if (watchlist.some(item => item.code === stock.code)) {
+        setWatchlistStatus('该股票已在自选列表中。', true);
+        return;
+    }
+
+    watchlist.push(stock);
+    saveWatchlist();
+    input.value = '';
+    setWatchlistStatus(`已添加 ${stock.name}。`);
+    loadWatchlistData();
+}
+
+function createManualStock(keyword) {
+    return {
+        code: keyword,
+        name: keyword,
+        price: '--',
+        changePercent: 0
+    };
+}
+
+function setWatchlistStatus(message, isError = false) {
+    const status = document.getElementById('watchlist-status');
+    if (!status) return;
+
+    status.textContent = message;
+    status.classList.toggle('error', isError);
+}
+
 // ==================== 资金流向数据 ====================
 function loadCapitalData() {
     const capital = SAMPLE_DATA.capital;
     
     // 主力资金
-    const mainFund = capital.mainFund;
-    const mainFundEl = document.getElementById('main-fund-value');
-    mainFundEl.textContent = mainFund.value;
-    mainFundEl.className = 'capital-value';
-    if (mainFund.isPositive) {
-        mainFundEl.classList.add('positive');
+    const mainCapital = capital.mainCapital;
+    const mainCapitalEl = document.getElementById('main-capital-value');
+    mainCapitalEl.textContent = mainCapital.value;
+    mainCapitalEl.className = 'capital-value';
+    if (mainCapital.isPositive) {
+        mainCapitalEl.classList.add('positive');
     } else {
-        mainFundEl.classList.add('negative');
+        mainCapitalEl.classList.add('negative');
     }
     
     // 北向资金
-    const northFund = capital.northFund;
-    const northFundEl = document.getElementById('north-fund-value');
-    northFundEl.textContent = northFund.value;
-    northFundEl.className = 'capital-value';
-    if (northFund.isPositive) {
-        northFundEl.classList.add('positive');
+    const northCapital = capital.northCapital;
+    const northCapitalEl = document.getElementById('north-capital-value');
+    northCapitalEl.textContent = northCapital.value;
+    northCapitalEl.className = 'capital-value';
+    if (northCapital.isPositive) {
+        northCapitalEl.classList.add('positive');
     } else {
-        northFundEl.classList.add('negative');
+        northCapitalEl.classList.add('negative');
     }
 }
 
@@ -199,13 +362,12 @@ function loadMultiDayFlowData() {
             
             let tableHtml = `<td class="sector-name-cell">${sector.name}</td>`;
             
-            sector.data.forEach((value, idx) => {
+            sector.data.forEach(value => {
                 const isPositive = value.startsWith('+');
                 tableHtml += `<td class="${isPositive ? 'flow-positive' : 'flow-negative'}">${value}</td>`;
             });
             
-            // 趋势标识
-            const trendIcon = sector.trend === 'up' ? '📈' : '📉';
+            const trendIcon = sector.trend === 'up' ? '上行' : '下行';
             const consecutiveBadge = sector.consecutiveDays >= 3 ? 
                 `<span class="consecutive-badge">连续${sector.consecutiveDays}日流入</span>` : '';
             
@@ -235,12 +397,12 @@ function loadMultiDayFlowData() {
             
             let tableHtml = `<td class="sector-name-cell">${sector.name}</td>`;
             
-            sector.data.forEach((value, idx) => {
+            sector.data.forEach(value => {
                 const isPositive = value.startsWith('+');
                 tableHtml += `<td class="${isPositive ? 'flow-positive' : 'flow-negative'}">${value}</td>`;
             });
             
-            const trendIcon = sector.trend === 'up' ? '📈' : '📉';
+            const trendIcon = sector.trend === 'up' ? '上行' : '下行';
             const consecutiveBadge = sector.consecutiveDays >= 3 ? 
                 `<span class="consecutive-badge outflow">连续${sector.consecutiveDays}日流出</span>` : '';
             
@@ -293,195 +455,4 @@ function loadNewsData() {
         
         newsList.appendChild(item);
     });
-}
-
-// ==================== 主动管理型基金数据 ====================
-function loadActiveFundsData() {
-    const fundsList = document.getElementById('active-funds-list');
-    if (!fundsList) return;
-    fundsList.innerHTML = '';
-    
-    SAMPLE_DATA.activeFunds.slice(0, 8).forEach(fund => {
-        const card = document.createElement('div');
-        card.className = 'fund-card active-fund-card';
-        
-        const changeClass = fund.changePercent > 0 ? 'positive' : 
-                           fund.changePercent < 0 ? 'negative' : 'neutral';
-        
-        // 分类标签颜色
-        const categoryColors = {
-            '偏股混合型': 'equity',
-            '灵活配置型': 'flexible',
-            '普通股票型': 'stock',
-            '长期纯债型': 'bond',
-            '可转债型': 'convertible',
-            '混合型': 'mixed'
-        };
-        const categoryClass = categoryColors[fund.category] || 'default';
-        
-        // 风险等级颜色
-        const riskColors = {
-            '低风险': 'risk-low',
-            '中低风险': 'risk-lowmid',
-            '中风险': 'risk-mid',
-            '中高风险': 'risk-midhigh',
-            '高风险': 'risk-high'
-        };
-        const riskClass = riskColors[fund.riskLevel] || 'risk-mid';
-        
-        // 核心催化剂标签
-        const catalystsHtml = fund.keyCatalysts && fund.keyCatalysts.length > 0 ? 
-            `<div class="fund-catalysts">
-                ${fund.keyCatalysts.map(c => `<span class="catalyst-tag">${c}</span>`).join('')}
-            </div>` : '';
-        
-        card.innerHTML = `
-            <div class="fund-header">
-                <div class="fund-title-row">
-                    <span class="fund-name">${fund.name}</span>
-                    <span class="fund-category ${categoryClass}">${fund.category}</span>
-                    <span class="fund-risk ${riskClass}">${fund.riskLevel}</span>
-                </div>
-                <span class="fund-change ${changeClass}">${fund.change}</span>
-            </div>
-            <div class="fund-meta">
-                <span class="fund-code">代码：${fund.code}</span>
-                <span class="fund-manager">经理：${fund.fundManager}</span>
-                <span class="fund-scale">规模：${fund.fundScale}</span>
-                <span class="fund-value">净值：${fund.value}</span>
-            </div>
-            <div class="fund-performance">业绩表现：${fund.recentPerformance}</div>
-            ${catalystsHtml}
-            <div class="fund-reason">
-                <div class="reason-title">📊 推荐逻辑</div>
-                <div class="reason-content">${fund.recommendReason}</div>
-            </div>
-        `;
-        
-        fundsList.appendChild(card);
-    });
-}
-
-// ==================== ETF基金数据 ====================
-function loadEtfData() {
-    const fundsList = document.getElementById('etf-list');
-    if (!fundsList) return;
-    fundsList.innerHTML = '';
-    
-    SAMPLE_DATA.etfFunds.slice(0, 8).forEach(etf => {
-        const card = document.createElement('div');
-        card.className = 'fund-card etf-card';
-        
-        const changeClass = etf.changePercent > 0 ? 'positive' : 
-                           etf.changePercent < 0 ? 'negative' : 'neutral';
-        
-        // 分类标签颜色
-        const categoryColors = {
-            '宽基指数': 'broad',
-            '行业主题': 'sector',
-            '策略指数': 'strategy',
-            '跨境指数': 'global',
-            '商品指数': 'commodity'
-        };
-        const categoryClass = categoryColors[etf.category] || 'default';
-        
-        // 风险等级颜色
-        const riskColors = {
-            '低风险': 'risk-low',
-            '中低风险': 'risk-lowmid',
-            '中风险': 'risk-mid',
-            '中高风险': 'risk-midhigh',
-            '高风险': 'risk-high'
-        };
-        const riskClass = riskColors[etf.riskLevel] || 'risk-mid';
-        
-        // 核心催化剂标签
-        const catalystsHtml = etf.keyCatalysts && etf.keyCatalysts.length > 0 ? 
-            `<div class="fund-catalysts">
-                ${etf.keyCatalysts.map(c => `<span class="catalyst-tag">${c}</span>`).join('')}
-            </div>` : '';
-        
-        card.innerHTML = `
-            <div class="fund-header">
-                <div class="fund-title-row">
-                    <span class="fund-name">${etf.name}</span>
-                    <span class="fund-category ${categoryClass}">${etf.category}</span>
-                    <span class="fund-risk ${riskClass}">${etf.riskLevel}</span>
-                </div>
-                <span class="fund-change ${changeClass}">${etf.change}</span>
-            </div>
-            <div class="fund-meta">
-                <span class="fund-code">代码：${etf.code}</span>
-                <span class="fund-scale">规模：${etf.fundScale}</span>
-                <span class="fund-tracking">跟踪误差：${etf.trackingError}</span>
-                <span class="fund-value">净值：${etf.value}</span>
-            </div>
-            <div class="fund-performance">近期表现：${etf.recentPerformance}</div>
-            ${catalystsHtml}
-            <div class="fund-reason">
-                <div class="reason-title">📊 推荐逻辑</div>
-                <div class="reason-content">${etf.recommendReason}</div>
-            </div>
-        `;
-        
-        fundsList.appendChild(card);
-    });
-}
-
-// ==================== JSONP数据获取 ====================
-function fetchJSONP(url, callbackName, timeout = 10000) {
-    return new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        const timer = setTimeout(() => {
-            delete window[callbackName];
-            document.body.removeChild(script);
-            reject(new Error('JSONP request timeout'));
-        }, timeout);
-        
-        window[callbackName] = function(data) {
-            clearTimeout(timer);
-            delete window[callbackName];
-            document.body.removeChild(script);
-            resolve(data);
-        };
-        
-        script.src = url;
-        script.onerror = function() {
-            clearTimeout(timer);
-            delete window[callbackName];
-            document.body.removeChild(script);
-            reject(new Error('JSONP request failed'));
-        };
-        
-        document.body.appendChild(script);
-    });
-}
-
-// 天天基金实时估值API
-function fetchFundEstimate(fundCode) {
-    const timestamp = new Date().getTime();
-    const url = `https://fundgz.1234567.com.cn/js/${fundCode}.js?rt=${timestamp}`;
-    
-    return fetchJSONP(url, `jsonpgz_${fundCode}_${timestamp}`)
-        .catch(() => null);
-}
-
-// 批量获取基金实时估值
-async function batchFetchFundEstimates(fundCodes) {
-    const results = {};
-    
-    for (const code of fundCodes) {
-        try {
-            const data = await fetchFundEstimate(code);
-            if (data && data.length > 0) {
-                results[code] = data[0];
-            }
-        } catch (e) {
-            console.log(`获取基金 ${code} 数据失败`);
-        }
-        // 延迟避免请求过快
-        await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    
-    return results;
 }

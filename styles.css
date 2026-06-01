@@ -112,6 +112,18 @@ body {
     background: rgba(212, 175, 55, 0.26);
 }
 
+.header-right select {
+    width: 72px;
+    height: 36px;
+    border: 1px solid var(--border-card);
+    border-radius: var(--radius-sm);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    font-family: var(--font);
+    font-size: 12px;
+    outline: none;
+}
+
 /* ---------- Tab Bar ---------- */
 .tab-bar {
     display: flex;
@@ -397,22 +409,23 @@ body {
     color: var(--text-tertiary);
     font-size: 11px;
     font-weight: 500;
-    gap: 16px;
+    gap: 10px;
     letter-spacing: 0.3px;
 }
-.watchlist-header-name { flex: 1 1 auto; min-width: 0; max-width: 160px; }
+.watchlist-header-name { flex: 1 1 auto; min-width: 0; }
 .watchlist-header-price {
-    flex: 0 0 80px;
+    flex: 0 0 74px;
     text-align: right;
     font-family: var(--mono);
 }
 .watchlist-header-change {
-    flex: 0 0 82px;
+    flex: 0 0 68px;
     text-align: right;
     font-family: var(--mono);
 }
 .watchlist-header-action {
-    flex: 0 0 80px;
+    flex: 0 0 42px;
+    text-align: center;
 }
 
 .add-btn {
@@ -453,13 +466,12 @@ body {
     padding: 10px 12px;
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 10px;
 }
 
 .watchlist-item-main {
     flex: 1 1 auto;
     min-width: 0;
-    max-width: 160px;
 }
 
 .watchlist-stock-name {
@@ -478,7 +490,7 @@ body {
 }
 
 .watchlist-stock-price {
-    flex: 0 0 80px;
+    flex: 0 0 74px;
     font-size: 16px;
     font-weight: 700;
     font-family: var(--mono);
@@ -491,7 +503,7 @@ body {
 .watchlist-stock-price.neutral { color: var(--text-primary); }
 
 .watchlist-stock-change {
-    flex: 0 0 82px;
+    flex: 0 0 68px;
     font-size: 13px;
     font-weight: 700;
     font-family: var(--mono);
@@ -525,10 +537,10 @@ body {
 }
 
 .watchlist-remove-btn {
-    flex: 0 0 32px;
-    width: 24px;
+    flex: 0 0 42px;
+    width: 42px;
     height: 24px;
-    margin-left: 48px;
+    margin-left: 0;
     border: 1px solid rgba(240, 91, 91, 0.18);
     border-radius: var(--radius-xs);
     background: var(--red-bg);
@@ -646,6 +658,27 @@ body {
 .sector-list .list-empty,
 .sector-amount.positive { color: var(--red); font-weight: 600; font-family: var(--mono); }
 .sector-amount.negative { color: var(--green); font-weight: 600; font-family: var(--mono); }
+
+.sector-flow-container {
+    display: grid;
+    gap: 12px;
+}
+
+.sector-flow {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px 2px;
+}
+
+.section-label {
+    margin-bottom: 4px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.section-label.positive { color: var(--red); }
+.section-label.negative { color: var(--green); }
 
 /* ---------- 强势股 ---------- */
 .hot-stocks-list { }

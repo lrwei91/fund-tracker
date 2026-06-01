@@ -5,128 +5,164 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>投资看板</title>
     <link rel="stylesheet" href="styles.css">
-    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
 </head>
 <body>
     <div class="container">
-        <!-- 头部 -->
         <header class="header">
-            <h1>📊 投资看板</h1>
-            <div class="update-info">
-                <span id="update-time">数据加载中...</span>
-                <button id="refresh-btn" class="refresh-btn">🔄 刷新</button>
-                <span class="auto-refresh">
-                    <label>
-                        <input type="checkbox" id="auto-refresh-toggle" checked> 自动刷新
-                    </label>
-                    <select id="refresh-interval" style="margin-left: 8px;">
-                        <option value="60" selected>1分钟</option>
-                        <option value="120">2分钟</option>
-                        <option value="300">5分钟</option>
-                    </select>
-                </span>
+            <div class="header-left">
+                <h1>投资看板</h1>
+                <div class="header-subtitle" id="update-time">数据加载中...</div>
+            </div>
+            <div class="header-right">
+                <button id="refresh-btn" class="header-btn header-refresh-btn" type="button" aria-label="刷新数据">刷新</button>
+                <label class="toggle" aria-label="自动刷新">
+                    <input type="checkbox" id="auto-refresh-toggle" checked>
+                    <span class="toggle-track"></span>
+                </label>
+                <select id="refresh-interval" aria-label="刷新间隔">
+                    <option value="60" selected>1分钟</option>
+                    <option value="120">2分钟</option>
+                    <option value="300">5分钟</option>
+                </select>
             </div>
         </header>
 
-        <!-- 主内容 -->
+        <nav class="tab-bar" aria-label="看板分类">
+            <button class="tab-btn active" type="button" data-tab="market-panel" aria-selected="true">市场</button>
+            <button class="tab-btn" type="button" data-tab="flow-panel" aria-selected="false">资金</button>
+            <button class="tab-btn" type="button" data-tab="news-panel" aria-selected="false">新闻</button>
+        </nav>
+
         <main id="main-content">
-            <!-- 1. 大盘指数实时数据 -->
-            <section class="card index-section">
-                <h2>📈 大盘指数</h2>
-                <div class="index-grid">
-                    <div class="index-item" data-index="shangzhi">
-                        <div class="index-name">上证指数</div>
-                        <div class="index-value neutral" id="shangzhi-value">--</div>
-                        <div class="index-change" id="shangzhi-change">--</div>
+            <div class="tab-panel active" id="market-panel">
+                <section class="card index-section">
+                    <div class="card-header" role="button" tabindex="0" aria-expanded="true">
+                        <h2>大盘指数</h2>
+                        <span class="collapse-icon">⌄</span>
                     </div>
-                    <div class="index-item" data-index="shengzheng">
-                        <div class="index-name">深证成指</div>
-                        <div class="index-value neutral" id="shengzheng-value">--</div>
-                        <div class="index-change" id="shengzheng-change">--</div>
+                    <div class="card-body">
+                        <div class="index-grid">
+                            <div class="index-item" data-index="shangzhi">
+                                <div class="index-name">上证指数</div>
+                                <div class="index-value neutral" id="shangzhi-value">--</div>
+                                <div class="index-change" id="shangzhi-change">--</div>
+                            </div>
+                            <div class="index-item" data-index="shengzheng">
+                                <div class="index-name">深证成指</div>
+                                <div class="index-value neutral" id="shengzheng-value">--</div>
+                                <div class="index-change" id="shengzheng-change">--</div>
+                            </div>
+                            <div class="index-item" data-index="chuangye">
+                                <div class="index-name">创业板指</div>
+                                <div class="index-value neutral" id="chuangye-value">--</div>
+                                <div class="index-change" id="chuangye-change">--</div>
+                            </div>
+                            <div class="index-item" data-index="zhuanke50">
+                                <div class="index-name">科创50</div>
+                                <div class="index-value neutral" id="zhuanke50-value">--</div>
+                                <div class="index-change" id="zhuanke50-change">--</div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="index-item" data-index="chuangye">
-                        <div class="index-name">创业板指</div>
-                        <div class="index-value neutral" id="chuangye-value">--</div>
-                        <div class="index-change" id="chuangye-change">--</div>
-                    </div>
-                    <div class="index-item" data-index="zhuanke50">
-                        <div class="index-name">科创50</div>
-                        <div class="index-value neutral" id="zhuanke50-value">--</div>
-                        <div class="index-change" id="zhuanke50-change">--</div>
-                    </div>
-                </div>
-            </section>
+                </section>
 
-            <!-- 2. 主力资金流向 -->
-            <section class="card capital-section">
-                <h2>💰 资金流向</h2>
-                <div class="capital-grid">
-                    <div class="capital-item">
-                        <div class="capital-label">主力资金</div>
-                        <div class="capital-value" id="main-fund-value">--</div>
+                <section class="card watchlist-section">
+                    <div class="card-header" role="button" tabindex="0" aria-expanded="true">
+                        <h2>自选股</h2>
+                        <span class="collapse-icon">⌄</span>
                     </div>
-                    <div class="capital-item">
-                        <div class="capital-label">北向资金</div>
-                        <div class="capital-value" id="north-fund-value">--</div>
+                    <div class="card-body">
+                        <div class="watchlist-add">
+                            <input id="watchlist-input" type="text" inputmode="text" placeholder="输入股票代码或名称">
+                            <button id="watchlist-add-btn" class="add-btn" type="button">添加</button>
+                        </div>
+                        <div class="watchlist-status" id="watchlist-status"></div>
+                        <div class="watchlist-header-row">
+                            <span class="watchlist-header-name">名称</span>
+                            <span class="watchlist-header-price">价格</span>
+                            <span class="watchlist-header-change">涨跌幅</span>
+                            <span class="watchlist-header-action">操作</span>
+                        </div>
+                        <div class="watchlist-grid" id="watchlist-grid"></div>
                     </div>
-                </div>
-            </section>
+                </section>
 
-            <!-- 3. 板块资金排行 -->
-            <section class="card sector-section">
-                <h2>🏭 板块排行</h2>
-                <div class="sector-flow-container">
-                    <div class="sector-flow inflow">
-                        <h4 class="positive">🔴 流入 TOP5</h4>
-                        <ul id="inflow-sectors" class="sector-list"></ul>
+                <section class="card capital-section">
+                    <div class="card-header" role="button" tabindex="0" aria-expanded="true">
+                        <h2>资金流向</h2>
+                        <span class="collapse-icon">⌄</span>
                     </div>
-                    <div class="sector-flow outflow">
-                        <h4 class="negative">🟢 流出 TOP5</h4>
-                        <ul id="outflow-sectors" class="sector-list"></ul>
+                    <div class="card-body">
+                        <div class="capital-grid">
+                            <div class="capital-item">
+                                <div class="capital-label">主力资金</div>
+                                <div class="capital-value" id="main-capital-value">--</div>
+                            </div>
+                            <div class="capital-item">
+                                <div class="capital-label">北向资金</div>
+                                <div class="capital-value" id="north-capital-value">--</div>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </section>
+                </section>
+            </div>
 
-            <!-- 4. 多日板块资金流向（新增） -->
-            <section class="card multiday-flow-section" id="multiday-flow-container">
-                <h2>📅 多日资金流向趋势</h2>
-                <div class="multiday-container">
-                    <div class="multiday-table-wrapper">
-                        <h4 class="table-title positive">🔥 连续流入板块</h4>
-                        <table class="multiday-table" id="multiday-inflow"></table>
+            <div class="tab-panel" id="flow-panel">
+                <section class="card sector-section">
+                    <div class="card-header" role="button" tabindex="0" aria-expanded="true">
+                        <h2>板块排行</h2>
+                        <span class="collapse-icon">⌄</span>
                     </div>
-                    <div class="multiday-table-wrapper">
-                        <h4 class="table-title negative">⚠️ 连续流出板块</h4>
-                        <table class="multiday-table" id="multiday-outflow"></table>
+                    <div class="card-body">
+                        <div class="sector-flow-container">
+                            <div class="sector-flow inflow">
+                                <h4 class="section-label positive">流入 TOP5</h4>
+                                <ul id="inflow-sectors" class="sector-list"></ul>
+                            </div>
+                            <div class="sector-flow outflow">
+                                <h4 class="section-label negative">流出 TOP5</h4>
+                                <ul id="outflow-sectors" class="sector-list"></ul>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </section>
+                </section>
 
-            <!-- 5. 财经新闻 -->
-            <section class="card news-section">
-                <h2>📰 财经新闻</h2>
-                <div class="news-list" id="realtime-news"></div>
-            </section>
+                <section class="card multiday-flow-section" id="multiday-flow-container">
+                    <div class="card-header" role="button" tabindex="0" aria-expanded="true">
+                        <h2>多日趋势</h2>
+                        <span class="collapse-icon">⌄</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="multiday-container">
+                            <div class="multiday-table-wrapper">
+                                <h4 class="table-title positive">连续流入板块</h4>
+                                <table class="multiday-table" id="multiday-inflow"></table>
+                            </div>
+                            <div class="multiday-table-wrapper">
+                                <h4 class="table-title negative">连续流出板块</h4>
+                                <table class="multiday-table" id="multiday-outflow"></table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
 
-            <!-- 6. 精选主动基金推荐 -->
-            <section class="card funds-section">
-                <h2>🏆 精选主动基金推荐</h2>
-                <p class="section-intro">精选股票型、混合型、债券型优质主动管理基金，覆盖不同风格和风险等级，基金经理任职稳定，业绩排名同类前30%</p>
-                <div class="funds-grid" id="active-funds-list"></div>
-            </section>
-
-            <!-- 7. 精选ETF推荐 -->
-            <section class="card funds-section">
-                <h2>📊 精选ETF推荐</h2>
-                <p class="section-intro">涵盖宽基指数、行业主题优质ETF，规模大流动性好，跟踪误差小，适合底仓配置和赛道布局</p>
-                <div class="funds-grid" id="etf-list"></div>
-            </section>
+            <div class="tab-panel" id="news-panel">
+                <section class="card news-section">
+                    <div class="card-header" role="button" tabindex="0" aria-expanded="true">
+                        <h2>财经新闻</h2>
+                        <span class="collapse-icon">⌄</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="news-list" id="realtime-news"></div>
+                    </div>
+                </section>
+            </div>
         </main>
 
-        <!-- 页脚 -->
         <footer class="footer">
             <p>数据仅供参考，不构成投资建议 | 投资有风险，入市需谨慎</p>
-            <p>数据来源：东方财富、天天基金、新浪财经 | 更新时间：2026-05-08</p>
+            <p>数据来源：东方财富、新浪财经、财联社</p>
         </footer>
     </div>
 
