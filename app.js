@@ -4,7 +4,7 @@
 
 // ---------- State ----------
 let refreshIntervalMain = null;   // 大盘指数 + 自选股
-let refreshIntervalSignal = null; // 板块 + 龙虎榜 + 解禁
+let refreshIntervalSignal = null; // 资金流 + 板块
 let refreshIntervalNews = null;   // 财经新闻
 let isAutoRefresh = true;
 let refreshSecondsMain = 10;
@@ -15,6 +15,9 @@ let activeWatchTabId = 'default';
 const API_BASE = '/api';
 const VALID_TABS = ['dashboard', 'signals', 'news'];
 const TAB_TITLES = { dashboard: '资产总览', signals: '市场信号', news: '财经快讯' };
+const MULTIDAY_FLOW_CACHE_KEY = 'fund_tracker_multiday_flow_cache';
+const DRAGON_TIGER_CACHE_KEY = 'fund_tracker_dragon_tiger_cache';
+const LOCKUP_CACHE_KEY = 'fund_tracker_lockup_cache';
 
 // 实时数据缓存
 let liveIndexData = null;
@@ -287,16 +290,31 @@ function isIntradayRefreshWindow() {
 function isAfterCloseDailyWindow() {
     var now = getShanghaiNow();
     if (!isTradingWeekday(now.weekday)) return false;
-    return now.minutes > 15 * 60 + 5 && now.minutes <= 21 * 60;
+    return now.minutes >= 16 * 60 && now.minutes <= 21 * 60;
+}
+
+function isAfterCloseForDailyUpdate() {
+    var now = getShanghaiNow();
+    if (!isTradingWeekday(now.weekday)) return false;
+    return now.minutes >= 16 * 60;
+}
+
+function getShanghaiDateKey() {
+    return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Shanghai',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    }).format(new Date());
 }
 
 function loadIntradayData() {
     loadIndexData();
     loadWatchlistData();
-    loadCapitalData();
 }
 
 function loadIntradaySignalData() {
+    loadCapitalData();
     loadSectorData();
 }
 
@@ -348,7 +366,6 @@ function startMainAutoRefresh() {
         if (isIntradayRefreshWindow()) {
             loadIndexData();
             loadWatchlistData();
-            loadCapitalData();
         }
     }, refreshSecondsMain * 1000);
 }
@@ -362,8 +379,6 @@ function startSignalAutoRefresh() {
     refreshIntervalSignal = setInterval(function () {
         if (isIntradayRefreshWindow()) {
             loadIntradaySignalData();
-        } else if (isAfterCloseDailyWindow()) {
-            loadAfterCloseDailyData();
         }
     }, refreshSecondsSignal * 1000);
 }
@@ -508,6 +523,9 @@ async function loadSectorData() {
 
 // ---------- 多日资金流向 ----------
 async function loadMultiDayFlowData() {
+    var todayKey = getShanghaiDateKey();
+    var cached = readMultiDayFlowCache();
+
     function renderTable(id, sectors, trendUp) {
         var table = document.getElementById(id);
         if (!table) return;
@@ -528,12 +546,7 @@ async function loadMultiDayFlowData() {
         table.innerHTML = '<tr><td class="list-empty">' + escapeHtml(message) + '</td></tr>';
     }
 
-    try {
-        var res = await fetch(apiUrl('/market-data', { type: 'multiday-flow' }));
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        var result = await res.json();
-        if (!result.success || !result.data || !result.data.dates) throw new Error('数据异常');
-        var flow = result.data;
+    function renderFlow(flow) {
         if (!(flow.inflowSectors || []).length && !(flow.outflowSectors || []).length) {
             renderTableMessage('multiday-inflow', '暂无可靠真实多日资金数据');
             renderTableMessage('multiday-outflow', '暂无可靠真实多日资金数据');
@@ -541,9 +554,58 @@ async function loadMultiDayFlowData() {
         }
         renderTable('multiday-inflow', flow.inflowSectors || [], true);
         renderTable('multiday-outflow', flow.outflowSectors || [], false);
+    }
+
+    if (cached && cached.date === todayKey && cached.data) {
+        renderFlow(cached.data);
+        return;
+    }
+
+    if (!isAfterCloseForDailyUpdate()) {
+        if (cached && cached.data) {
+            renderFlow(cached.data);
+            return;
+        }
+        renderTableMessage('multiday-inflow', '收盘后更新');
+        renderTableMessage('multiday-outflow', '收盘后更新');
+        return;
+    }
+
+    try {
+        var res = await fetch(apiUrl('/market-data', { type: 'multiday-flow' }));
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        var result = await res.json();
+        if (!result.success || !result.data || !result.data.dates) throw new Error('数据异常');
+        var flow = result.data;
+        writeMultiDayFlowCache(todayKey, flow);
+        renderFlow(flow);
     } catch (e) {
+        if (cached && cached.data) {
+            renderFlow(cached.data);
+            return;
+        }
         renderTableMessage('multiday-inflow', '暂无可靠真实多日资金数据');
         renderTableMessage('multiday-outflow', '暂无可靠真实多日资金数据');
+    }
+}
+
+function readMultiDayFlowCache() {
+    try {
+        return JSON.parse(localStorage.getItem(MULTIDAY_FLOW_CACHE_KEY) || 'null');
+    } catch (e) {
+        return null;
+    }
+}
+
+function writeMultiDayFlowCache(date, data) {
+    try {
+        localStorage.setItem(MULTIDAY_FLOW_CACHE_KEY, JSON.stringify({
+            date: date,
+            data: data,
+            updatedAt: new Date().toISOString(),
+        }));
+    } catch (e) {
+        // Ignore storage failures; the live data has already rendered.
     }
 }
 
@@ -552,19 +614,17 @@ async function loadDragonTigerData() {
     var container = document.getElementById('dragon-tiger-list');
     var dateEl = document.getElementById('dragon-tiger-date');
     if (!container) return;
+    var todayKey = getShanghaiDateKey();
+    var cached = readDailyDataCache(DRAGON_TIGER_CACHE_KEY);
 
-    try {
-        var res = await fetch(apiUrl('/dragon-tiger'));
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        var json = await res.json();
-
-        if (!json.success || !json.data || !json.data.stocks || json.data.stocks.length === 0) {
+    function renderDragonTiger(data) {
+        if (!data || !data.stocks || data.stocks.length === 0) {
             container.innerHTML = renderEmpty('暂无龙虎榜数据');
             return;
         }
 
-        var stocks = json.data.stocks.slice(0, 20);
-        if (dateEl) dateEl.textContent = json.data.date || '';
+        var stocks = data.stocks.slice(0, 20);
+        if (dateEl) dateEl.textContent = data.date || '';
 
         var html = '';
         stocks.forEach(function (s) {
@@ -578,8 +638,37 @@ async function loadDragonTigerData() {
             html += '</div>';
         });
         if (html) container.innerHTML = html;
+    }
+
+    if (cached && cached.date === todayKey && cached.data) {
+        renderDragonTiger(cached.data);
+        return;
+    }
+
+    if (!isAfterCloseForDailyUpdate()) {
+        if (cached && cached.data) {
+            renderDragonTiger(cached.data);
+            return;
+        }
+        container.innerHTML = renderEmpty('收盘后更新');
+        if (dateEl) dateEl.textContent = '';
+        return;
+    }
+
+    try {
+        var res = await fetch(apiUrl('/dragon-tiger'));
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        var json = await res.json();
+
+        if (!json.success || !json.data) throw new Error('数据异常');
+        writeDailyDataCache(DRAGON_TIGER_CACHE_KEY, todayKey, json.data);
+        renderDragonTiger(json.data);
     } catch (e) {
         console.error('龙虎榜获取失败:', e);
+        if (cached && cached.data) {
+            renderDragonTiger(cached.data);
+            return;
+        }
         container.innerHTML = renderEmpty('龙虎榜加载失败');
     }
 }
@@ -588,18 +677,16 @@ async function loadDragonTigerData() {
 async function loadLockupData() {
     var container = document.getElementById('lockup-list');
     if (!container) return;
+    var todayKey = getShanghaiDateKey();
+    var cached = readDailyDataCache(LOCKUP_CACHE_KEY);
 
-    try {
-        var res = await fetch(apiUrl('/lockup'));
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        var json = await res.json();
-
-        if (!json.success || !json.data || !json.data.items || json.data.items.length === 0) {
+    function renderLockup(data) {
+        if (!data || !data.items || data.items.length === 0) {
             container.innerHTML = renderEmpty('暂无解禁数据');
             return;
         }
 
-        var items = json.data.items.slice(0, 15);
+        var items = data.items.slice(0, 15);
         var html = '';
         items.forEach(function (item) {
             var ratioStr = (parseFloat(item.ratio) * 100).toFixed(2) + '%';
@@ -611,9 +698,57 @@ async function loadLockupData() {
             html += '</div>';
         });
         if (html) container.innerHTML = html;
+    }
+
+    if (cached && cached.date === todayKey && cached.data) {
+        renderLockup(cached.data);
+        return;
+    }
+
+    if (!isAfterCloseForDailyUpdate()) {
+        if (cached && cached.data) {
+            renderLockup(cached.data);
+            return;
+        }
+        container.innerHTML = renderEmpty('收盘后更新');
+        return;
+    }
+
+    try {
+        var res = await fetch(apiUrl('/lockup'));
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        var json = await res.json();
+
+        if (!json.success || !json.data) throw new Error('数据异常');
+        writeDailyDataCache(LOCKUP_CACHE_KEY, todayKey, json.data);
+        renderLockup(json.data);
     } catch (e) {
         console.error('限售解禁获取失败:', e);
+        if (cached && cached.data) {
+            renderLockup(cached.data);
+            return;
+        }
         container.innerHTML = renderEmpty('解禁数据加载失败');
+    }
+}
+
+function readDailyDataCache(key) {
+    try {
+        return JSON.parse(localStorage.getItem(key) || 'null');
+    } catch (e) {
+        return null;
+    }
+}
+
+function writeDailyDataCache(key, date, data) {
+    try {
+        localStorage.setItem(key, JSON.stringify({
+            date: date,
+            data: data,
+            updatedAt: new Date().toISOString(),
+        }));
+    } catch (e) {
+        // Ignore storage failures; the live data has already rendered.
     }
 }
 

@@ -14,6 +14,10 @@ const INDEXES = {
     zhuanke50: { symbol: 's_sh000688', name: '科创50' },
 };
 
+const dailyCache = {
+    multidayFlow: null,
+};
+
 async function loadIndexes() {
     const symbols = Object.values(INDEXES).map((item) => item.symbol).join(',');
     const text = await fetchGbkText(`https://qt.gtimg.cn/q=${symbols}`);
@@ -68,8 +72,17 @@ async function loadSector() {
 }
 
 async function loadMultiDayFlow() {
+    const cacheKey = shanghaiDateKey();
+    if (dailyCache.multidayFlow && dailyCache.multidayFlow.key === cacheKey) {
+        return dailyCache.multidayFlow.data;
+    }
+
     const sector = await loadSector();
-    const today = new Date().toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' });
+    const today = new Date().toLocaleDateString('zh-CN', {
+        timeZone: 'Asia/Shanghai',
+        month: 'numeric',
+        day: 'numeric',
+    });
     function mapRows(rows, trend) {
         return rows.map((row) => ({
             name: row.name,
@@ -78,11 +91,22 @@ async function loadMultiDayFlow() {
             trend,
         }));
     }
-    return {
+    const data = {
         dates: [today],
         inflowSectors: mapRows(sector.inflow, 'up'),
         outflowSectors: mapRows(sector.outflow, 'down'),
     };
+    dailyCache.multidayFlow = { key: cacheKey, data };
+    return data;
+}
+
+function shanghaiDateKey() {
+    return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Shanghai',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    }).format(new Date());
 }
 
 function formatYi(value) {
