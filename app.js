@@ -15,6 +15,24 @@ let activeWatchTabId = 'default';
 const API_BASE = '/api';
 const VALID_TABS = ['dashboard', 'signals', 'news'];
 const TAB_TITLES = { dashboard: '资产总览', signals: '市场信号', news: '财经快讯' };
+const SETTINGS_KEY = 'fund_tracker_settings';
+const ACTIVE_TAB_KEY = 'fund_tracker_active_main_tab';
+const NEWS_SOURCE_KEY = 'fund_tracker_news_source';
+const COLLAPSE_STATE_KEY = 'fund_tracker_collapse_state';
+const SECTOR_TAB_KEY = 'fund_tracker_sector_tab';
+const SHORT_CACHE_KEYS = {
+    index: 'fund_tracker_index_cache',
+    capital: 'fund_tracker_capital_cache',
+    sector: 'fund_tracker_sector_cache',
+    newsJin10: 'fund_tracker_news_jin10_cache',
+    newsEastmoney: 'fund_tracker_news_eastmoney_cache',
+};
+const SHORT_CACHE_TTL = {
+    index: 30 * 1000,
+    capital: 5 * 60 * 1000,
+    sector: 5 * 60 * 1000,
+    news: 5 * 60 * 1000,
+};
 const MULTIDAY_FLOW_CACHE_KEY = 'fund_tracker_multiday_flow_cache';
 const DRAGON_TIGER_CACHE_KEY = 'fund_tracker_dragon_tiger_cache';
 const LOCKUP_CACHE_KEY = 'fund_tracker_lockup_cache';
@@ -45,13 +63,15 @@ function initTabs() {
 
 function handleHash() {
     var hash = window.location.hash.replace('#', '');
-    var tab = VALID_TABS.includes(hash) ? hash : 'dashboard';
+    var savedTab = localStorage.getItem(ACTIVE_TAB_KEY);
+    var tab = VALID_TABS.includes(hash) ? hash : (VALID_TABS.includes(savedTab) ? savedTab : 'dashboard');
     switchTab(tab, false);
 }
 
 function switchTab(tab, updateHash) {
     if (!VALID_TABS.includes(tab)) return;
     currentTab = tab;
+    try { localStorage.setItem(ACTIVE_TAB_KEY, tab); } catch (e) {}
 
     // Update tab buttons
     document.querySelectorAll('.tab-btn').forEach(function (btn) {
@@ -82,12 +102,14 @@ function switchTab(tab, updateHash) {
 
 // ---------- Init ----------
 document.addEventListener('DOMContentLoaded', function () {
+    loadSettings();
     initTabs();
     initCollapsible();
     initSectorTabs();
     initWatchlistTabs();
     initNewsSourceTabs();
     initSettings();
+    syncSettingsControls();
     initDataPanel();
     bindEvents();
     initAutoRefresh();
@@ -99,10 +121,18 @@ function initCollapsible() {
     document.querySelectorAll('.card[data-collapsible="true"]').forEach(function (card) {
         var header = card.querySelector('.card-header');
         var body = card.querySelector('.card-body');
-        var isCollapsed = card.getAttribute('data-collapsed') === 'true';
+        var state = readJson(COLLAPSE_STATE_KEY, {});
+        var key = getCollapsibleKey(card);
+        var isCollapsed = Object.prototype.hasOwnProperty.call(state, key) ?
+            state[key] === true :
+            card.getAttribute('data-collapsed') === 'true';
 
         if (isCollapsed) {
+            card.setAttribute('data-collapsed', 'true');
             body.style.display = 'none';
+        } else {
+            card.setAttribute('data-collapsed', 'false');
+            body.style.display = '';
         }
 
         header.addEventListener('click', function () {
@@ -110,49 +140,127 @@ function initCollapsible() {
             if (collapsed) {
                 card.setAttribute('data-collapsed', 'false');
                 body.style.display = '';
+                saveCollapsibleState(card, false);
             } else {
                 card.setAttribute('data-collapsed', 'true');
                 body.style.display = 'none';
+                saveCollapsibleState(card, true);
             }
         });
     });
 }
 
+function getCollapsibleKey(card) {
+    return card.className.split(/\s+/).filter(function (name) {
+        return name !== 'card' && name.indexOf('-section') > -1;
+    })[0] || card.querySelector('h2').textContent.trim();
+}
+
+function saveCollapsibleState(card, collapsed) {
+    var state = readJson(COLLAPSE_STATE_KEY, {});
+    state[getCollapsibleKey(card)] = collapsed;
+    writeJson(COLLAPSE_STATE_KEY, state);
+}
+
 // ---------- Sector Tabs ----------
 function initSectorTabs() {
+    var savedTarget = localStorage.getItem(SECTOR_TAB_KEY);
+    if (savedTarget) activateSectorTab(savedTarget);
+
     var tabs = document.querySelectorAll('.sector-tab');
     tabs.forEach(function (tab) {
         tab.addEventListener('click', function () {
-            var parent = tab.parentElement;
-            parent.querySelectorAll('.sector-tab').forEach(function (t) { t.classList.remove('active'); });
-            tab.classList.add('active');
-
             var target = tab.getAttribute('data-tab');
-            var container = tab.closest('.card-body');
-            container.querySelectorAll('.sector-panel').forEach(function (p) { p.classList.remove('active'); });
-            var panel = container.querySelector('#sector-panel-' + target);
-            if (panel) panel.classList.add('active');
+            activateSectorTab(target);
+            try { localStorage.setItem(SECTOR_TAB_KEY, target); } catch (e) {}
         });
     });
 }
 
+function activateSectorTab(target) {
+    var tab = document.querySelector('.sector-tab[data-tab="' + target + '"]');
+    if (!tab) return;
+    var parent = tab.parentElement;
+    parent.querySelectorAll('.sector-tab').forEach(function (t) { t.classList.remove('active'); });
+    tab.classList.add('active');
+
+    var container = tab.closest('.card-body');
+    container.querySelectorAll('.sector-panel').forEach(function (p) { p.classList.remove('active'); });
+    var panel = container.querySelector('#sector-panel-' + target);
+    if (panel) panel.classList.add('active');
+}
+
 // ---------- News Source Tabs (金十/东财) ----------
-var currentNewsSource = 'jin10';
+var currentNewsSource = localStorage.getItem(NEWS_SOURCE_KEY) || 'jin10';
 
 function initNewsSourceTabs() {
+    if (!['jin10', 'eastmoney'].includes(currentNewsSource)) currentNewsSource = 'jin10';
     var tabs = document.querySelectorAll('.news-source-tab');
+    tabs.forEach(function (tab) {
+        tab.classList.toggle('active', tab.getAttribute('data-source') === currentNewsSource);
+    });
     tabs.forEach(function (tab) {
         tab.addEventListener('click', function () {
             var parent = tab.parentElement;
             parent.querySelectorAll('.news-source-tab').forEach(function (t) { t.classList.remove('active'); });
             tab.classList.add('active');
             currentNewsSource = tab.getAttribute('data-source');
+            try { localStorage.setItem(NEWS_SOURCE_KEY, currentNewsSource); } catch (e) {}
             loadNewsData();
         });
     });
 }
 
 // ---------- Settings ----------
+function normalizeOptionValue(value, allowedValues, fallback) {
+    var stringValue = String(value);
+    return allowedValues.includes(stringValue) ? stringValue : String(fallback);
+}
+
+function getSettingsControls() {
+    return {
+        autoRefresh: document.getElementById('auto-refresh-toggle'),
+        mainInterval: document.getElementById('refresh-interval-main'),
+        signalInterval: document.getElementById('refresh-interval-signal'),
+        newsInterval: document.getElementById('refresh-interval-news'),
+    };
+}
+
+function readSettings() {
+    try {
+        return JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') || {};
+    } catch (e) {
+        return {};
+    }
+}
+
+function loadSettings() {
+    var saved = readSettings();
+    isAutoRefresh = typeof saved.autoRefresh === 'boolean' ? saved.autoRefresh : isAutoRefresh;
+    refreshSecondsMain = parseInt(normalizeOptionValue(saved.mainInterval, ['10', '30', '60'], refreshSecondsMain), 10);
+    refreshSecondsSignal = parseInt(normalizeOptionValue(saved.signalInterval, ['900', '1800', '3600', '7200'], refreshSecondsSignal), 10);
+    refreshSecondsNews = parseInt(normalizeOptionValue(saved.newsInterval, ['60', '600', '1800'], refreshSecondsNews), 10);
+}
+
+function saveSettings() {
+    try {
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+            autoRefresh: isAutoRefresh,
+            mainInterval: refreshSecondsMain,
+            signalInterval: refreshSecondsSignal,
+            newsInterval: refreshSecondsNews,
+        }));
+    } catch (e) {}
+}
+
+function syncSettingsControls() {
+    var controls = getSettingsControls();
+    if (controls.autoRefresh) controls.autoRefresh.checked = isAutoRefresh;
+    if (controls.mainInterval) controls.mainInterval.value = String(refreshSecondsMain);
+    if (controls.signalInterval) controls.signalInterval.value = String(refreshSecondsSignal);
+    if (controls.newsInterval) controls.newsInterval.value = String(refreshSecondsNews);
+}
+
 function initSettings() {
     var overlay = document.getElementById('settings-overlay');
     var panel = document.getElementById('settings-panel');
@@ -207,21 +315,25 @@ function initDataPanel() {
 function bindEvents() {
     document.getElementById('auto-refresh-toggle').addEventListener('change', function (e) {
         isAutoRefresh = e.target.checked;
+        saveSettings();
         if (isAutoRefresh) { startAllAutoRefresh(); } else { stopAllAutoRefresh(); }
     });
 
     document.getElementById('refresh-interval-main').addEventListener('change', function (e) {
         refreshSecondsMain = parseInt(e.target.value);
+        saveSettings();
         if (isAutoRefresh) { startMainAutoRefresh(); }
     });
 
     document.getElementById('refresh-interval-signal').addEventListener('change', function (e) {
         refreshSecondsSignal = parseInt(e.target.value);
+        saveSettings();
         if (isAutoRefresh) { startSignalAutoRefresh(); }
     });
 
     document.getElementById('refresh-interval-news').addEventListener('change', function (e) {
         refreshSecondsNews = parseInt(e.target.value);
+        saveSettings();
         if (isAutoRefresh) { startNewsAutoRefresh(); }
     });
 
@@ -249,6 +361,30 @@ function escapeHtml(value) {
 
 function renderEmpty(message) {
     return '<div class="empty-state">' + escapeHtml(message) + '</div>';
+}
+
+function readJson(key, fallback) {
+    try {
+        var raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : fallback;
+    } catch (e) {
+        return fallback;
+    }
+}
+
+function writeJson(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+}
+
+function readTimedCache(key, ttlMs) {
+    var cached = readJson(key, null);
+    if (!cached || !cached.data || !cached.updatedAt) return null;
+    if (Date.now() - cached.updatedAt > ttlMs) return null;
+    return cached.data;
+}
+
+function writeTimedCache(key, data) {
+    writeJson(key, { data: data, updatedAt: Date.now() });
 }
 
 function setLastUpdated(label) {
@@ -436,12 +572,20 @@ function updateIndexUI(id, data) {
 }
 
 async function loadIndexData() {
+    var cached = readTimedCache(SHORT_CACHE_KEYS.index, SHORT_CACHE_TTL.index);
+    if (cached) {
+        liveIndexData = cached;
+        Object.keys(cached).forEach(function (id) { updateIndexUI(id, cached[id]); });
+        return;
+    }
+
     try {
         var res = await fetch(apiUrl('/market-data', { type: 'index' }));
         if (!res.ok) throw new Error('HTTP ' + res.status);
         var result = await res.json();
         if (!result.success || !result.data) throw new Error('数据异常');
         liveIndexData = result.data;
+        writeTimedCache(SHORT_CACHE_KEYS.index, result.data);
         Object.keys(result.data).forEach(function (id) { updateIndexUI(id, result.data[id]); });
         setLastUpdated('行情已更新');
     } catch (e) {
@@ -452,15 +596,23 @@ async function loadIndexData() {
 // ---------- 资金流向 ----------
 async function loadCapitalData() {
     var newData = null;
+    var cached = readTimedCache(SHORT_CACHE_KEYS.capital, SHORT_CACHE_TTL.capital);
+    if (cached) {
+        newData = cached;
+    }
+
     try {
-        var res = await fetch(apiUrl('/market-data', { type: 'capital' }));
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        var result = await res.json();
-        if (result.success && result.data && result.data.mainFund && result.data.mainFund.value !== undefined) {
-            newData = result.data;
+        if (!newData) {
+            var res = await fetch(apiUrl('/market-data', { type: 'capital' }));
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            var result = await res.json();
+            if (result.success && result.data && result.data.mainFund && result.data.mainFund.value !== undefined) {
+                newData = result.data;
+                writeTimedCache(SHORT_CACHE_KEYS.capital, result.data);
+            }
         }
     } catch (e) {
-        newData = null;
+        newData = cached || null;
     }
 
     if (newData) {
@@ -490,15 +642,23 @@ async function loadCapitalData() {
 // ---------- 板块排行 ----------
 async function loadSectorData() {
     var newData = null;
+    var cached = readTimedCache(SHORT_CACHE_KEYS.sector, SHORT_CACHE_TTL.sector);
+    if (cached) {
+        newData = cached;
+    }
+
     try {
-        var res = await fetch(apiUrl('/market-data', { type: 'sector' }));
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        var result = await res.json();
-        if (result.success && result.data && result.data.inflow) {
-            newData = result.data;
+        if (!newData) {
+            var res = await fetch(apiUrl('/market-data', { type: 'sector' }));
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            var result = await res.json();
+            if (result.success && result.data && result.data.inflow) {
+                newData = result.data;
+                writeTimedCache(SHORT_CACHE_KEYS.sector, result.data);
+            }
         }
     } catch (e) {
-        newData = null;
+        newData = cached || null;
     }
 
     if (newData) {
@@ -1250,9 +1410,13 @@ async function loadJin10News() {
     if (!container) return;
 
     try {
-        var res = await fetch(apiUrl('/news'));
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        var json = await res.json();
+        var json = readTimedCache(SHORT_CACHE_KEYS.newsJin10, SHORT_CACHE_TTL.news);
+        if (!json) {
+            var res = await fetch(apiUrl('/news'));
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            json = await res.json();
+            if (json.success) writeTimedCache(SHORT_CACHE_KEYS.newsJin10, json);
+        }
 
         if (!json.success || !json.data || !json.data.data || json.data.data.length === 0) {
             container.innerHTML = renderEmpty('暂无金十快讯');
@@ -1275,6 +1439,11 @@ async function loadJin10News() {
         if (html) container.innerHTML = html;
     } catch (e) {
         console.error('金十快讯获取失败:', e);
+        var cached = readJson(SHORT_CACHE_KEYS.newsJin10, null);
+        if (cached && cached.data) {
+            writeTimedCache(SHORT_CACHE_KEYS.newsJin10, cached.data);
+            return loadJin10News();
+        }
         container.innerHTML = renderEmpty('金十快讯加载失败');
     }
 }
@@ -1284,9 +1453,13 @@ async function loadEastmoneyNews() {
     if (!container) return;
 
     try {
-        var res = await fetch(apiUrl('/global-news'));
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        var json = await res.json();
+        var json = readTimedCache(SHORT_CACHE_KEYS.newsEastmoney, SHORT_CACHE_TTL.news);
+        if (!json) {
+            var res = await fetch(apiUrl('/global-news'));
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            json = await res.json();
+            if (json.success) writeTimedCache(SHORT_CACHE_KEYS.newsEastmoney, json);
+        }
 
         if (!json.success || !json.data || json.data.length === 0) {
             container.innerHTML = renderEmpty('暂无东财资讯');
@@ -1309,6 +1482,11 @@ async function loadEastmoneyNews() {
         });
         if (html) container.innerHTML = html;
     } catch (e) {
+        var cached = readJson(SHORT_CACHE_KEYS.newsEastmoney, null);
+        if (cached && cached.data) {
+            writeTimedCache(SHORT_CACHE_KEYS.newsEastmoney, cached.data);
+            return loadEastmoneyNews();
+        }
         container.innerHTML = renderEmpty('东财资讯加载失败');
     }
 }
