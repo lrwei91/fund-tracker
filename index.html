@@ -2,171 +2,298 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0f1419">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>投资看板</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div class="container">
-        <header class="header">
-            <div class="header-left">
-                <h1>投资看板</h1>
-                <div class="header-subtitle" id="update-time">数据加载中...</div>
+
+<!-- 头部 -->
+<header class="header" id="header">
+    <div class="header-left">
+        <h1 id="header-title">投资看板</h1>
+        <div class="header-subtitle" id="last-updated">等待更新</div>
+    </div>
+    <div class="header-right">
+        <button class="header-btn" id="watchlist-data-btn" aria-label="自选股导入导出">数据</button>
+        <button class="header-btn" id="settings-btn" aria-label="设置">设置</button>
+    </div>
+</header>
+
+<!-- Tab 栏 -->
+<nav class="tab-bar">
+    <button class="tab-btn active" data-tab="dashboard">投资看板</button>
+    <button class="tab-btn" data-tab="news">财经新闻</button>
+</nav>
+
+<main id="main-content">
+
+    <!-- ==================== 投资看板 Tab ==================== -->
+    <div class="tab-panel active" id="tab-dashboard">
+
+        <!-- 1. 大盘指数 -->
+        <section class="card index-section" data-collapsible="false">
+            <div class="card-header" role="button" tabindex="0">
+                <h2>大盘指数</h2>
             </div>
-            <div class="header-right">
-                <button id="refresh-btn" class="header-btn header-refresh-btn" type="button" aria-label="刷新数据">刷新</button>
-                <label class="toggle" aria-label="自动刷新">
-                    <input type="checkbox" id="auto-refresh-toggle" checked>
-                    <span class="toggle-track"></span>
-                </label>
-                <select id="refresh-interval" aria-label="刷新间隔">
-                    <option value="60" selected>1分钟</option>
-                    <option value="120">2分钟</option>
-                    <option value="300">5分钟</option>
-                </select>
+            <div class="card-body">
+                <div class="index-grid">
+                    <div class="index-item" data-index="shangzhi">
+                        <div class="index-name">上证指数</div>
+                        <div class="index-value neutral" id="shangzhi-value">--</div>
+                        <div class="index-change" id="shangzhi-change">--</div>
+                    </div>
+                    <div class="index-item" data-index="shengzheng">
+                        <div class="index-name">深证成指</div>
+                        <div class="index-value neutral" id="shengzheng-value">--</div>
+                        <div class="index-change" id="shengzheng-change">--</div>
+                    </div>
+                    <div class="index-item" data-index="chuangye">
+                        <div class="index-name">创业板指</div>
+                        <div class="index-value neutral" id="chuangye-value">--</div>
+                        <div class="index-change" id="chuangye-change">--</div>
+                    </div>
+                    <div class="index-item" data-index="zhuanke50">
+                        <div class="index-name">科创50</div>
+                        <div class="index-value neutral" id="zhuanke50-value">--</div>
+                        <div class="index-change" id="zhuanke50-change">--</div>
+                    </div>
+                </div>
             </div>
-        </header>
+        </section>
 
-        <nav class="tab-bar" aria-label="看板分类">
-            <button class="tab-btn active" type="button" data-tab="market-panel" aria-selected="true">市场</button>
-            <button class="tab-btn" type="button" data-tab="flow-panel" aria-selected="false">资金</button>
-            <button class="tab-btn" type="button" data-tab="news-panel" aria-selected="false">新闻</button>
-        </nav>
-
-        <main id="main-content">
-            <div class="tab-panel active" id="market-panel">
-                <section class="card index-section">
-                    <div class="card-header" role="button" tabindex="0" aria-expanded="true">
-                        <h2>大盘指数</h2>
-                        <span class="collapse-icon">⌄</span>
-                    </div>
-                    <div class="card-body">
-                        <div class="index-grid">
-                            <div class="index-item" data-index="shangzhi">
-                                <div class="index-name">上证指数</div>
-                                <div class="index-value neutral" id="shangzhi-value">--</div>
-                                <div class="index-change" id="shangzhi-change">--</div>
-                            </div>
-                            <div class="index-item" data-index="shengzheng">
-                                <div class="index-name">深证成指</div>
-                                <div class="index-value neutral" id="shengzheng-value">--</div>
-                                <div class="index-change" id="shengzheng-change">--</div>
-                            </div>
-                            <div class="index-item" data-index="chuangye">
-                                <div class="index-name">创业板指</div>
-                                <div class="index-value neutral" id="chuangye-value">--</div>
-                                <div class="index-change" id="chuangye-change">--</div>
-                            </div>
-                            <div class="index-item" data-index="zhuanke50">
-                                <div class="index-name">科创50</div>
-                                <div class="index-value neutral" id="zhuanke50-value">--</div>
-                                <div class="index-change" id="zhuanke50-change">--</div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
-                <section class="card watchlist-section">
-                    <div class="card-header" role="button" tabindex="0" aria-expanded="true">
-                        <h2>自选股</h2>
-                        <span class="collapse-icon">⌄</span>
-                    </div>
-                    <div class="card-body">
-                        <div class="watchlist-add">
-                            <input id="watchlist-input" type="text" inputmode="text" placeholder="输入股票代码或名称">
-                            <button id="watchlist-add-btn" class="add-btn" type="button">添加</button>
-                        </div>
-                        <div class="watchlist-status" id="watchlist-status"></div>
-                        <div class="watchlist-header-row">
-                            <span class="watchlist-header-name">名称</span>
-                            <span class="watchlist-header-price">价格</span>
-                            <span class="watchlist-header-change">涨跌幅</span>
-                            <span class="watchlist-header-action">操作</span>
-                        </div>
-                        <div class="watchlist-grid" id="watchlist-grid"></div>
-                    </div>
-                </section>
-
-                <section class="card capital-section">
-                    <div class="card-header" role="button" tabindex="0" aria-expanded="true">
-                        <h2>资金流向</h2>
-                        <span class="collapse-icon">⌄</span>
-                    </div>
-                    <div class="card-body">
-                        <div class="capital-grid">
-                            <div class="capital-item">
-                                <div class="capital-label">主力资金</div>
-                                <div class="capital-value" id="main-capital-value">--</div>
-                            </div>
-                            <div class="capital-item">
-                                <div class="capital-label">北向资金</div>
-                                <div class="capital-value" id="north-capital-value">--</div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
+        <!-- 2. 自选股 -->
+        <section class="card watchlist-section" data-collapsible="true">
+            <div class="card-header" role="button" tabindex="0">
+                <h2>自选股</h2>
+                <span class="watchlist-header-time" id="watchlist-update-time"></span>
+                <span class="collapse-icon">▼</span>
             </div>
-
-            <div class="tab-panel" id="flow-panel">
-                <section class="card sector-section">
-                    <div class="card-header" role="button" tabindex="0" aria-expanded="true">
-                        <h2>板块排行</h2>
-                        <span class="collapse-icon">⌄</span>
-                    </div>
-                    <div class="card-body">
-                        <div class="sector-flow-container">
-                            <div class="sector-flow inflow">
-                                <h4 class="section-label positive">流入 TOP5</h4>
-                                <ul id="inflow-sectors" class="sector-list"></ul>
-                            </div>
-                            <div class="sector-flow outflow">
-                                <h4 class="section-label negative">流出 TOP5</h4>
-                                <ul id="outflow-sectors" class="sector-list"></ul>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
-                <section class="card multiday-flow-section" id="multiday-flow-container">
-                    <div class="card-header" role="button" tabindex="0" aria-expanded="true">
-                        <h2>多日趋势</h2>
-                        <span class="collapse-icon">⌄</span>
-                    </div>
-                    <div class="card-body">
-                        <div class="multiday-container">
-                            <div class="multiday-table-wrapper">
-                                <h4 class="table-title positive">连续流入板块</h4>
-                                <table class="multiday-table" id="multiday-inflow"></table>
-                            </div>
-                            <div class="multiday-table-wrapper">
-                                <h4 class="table-title negative">连续流出板块</h4>
-                                <table class="multiday-table" id="multiday-outflow"></table>
-                            </div>
-                        </div>
-                    </div>
-                </section>
+            <div class="card-body">
+                <div class="watchlist-toolbar">
+                    <div class="watchlist-tabs" id="watchlist-tabs"></div>
+                    <button class="watchlist-tab-add" id="add-watch-tab-btn" type="button" aria-label="新增分组">+</button>
+                </div>
+                <div class="watchlist-add">
+                    <input type="text" id="stock-code-input" placeholder="输入代码或股票名，如 600519 / 贵州茅台">
+                    <button id="add-stock-btn" class="add-btn">添加</button>
+                </div>
+                <div class="watchlist-header-row">
+                    <span class="watchlist-header-name">股票名</span>
+                    <span class="watchlist-header-price">股价</span>
+                    <span class="watchlist-header-change">涨跌幅</span>
+                    <span class="watchlist-header-action"></span>
+                </div>
+                <div class="watchlist-grid" id="watchlist-grid">
+                    <div class="watchlist-empty">暂无自选股</div>
+                </div>
             </div>
+        </section>
 
-            <div class="tab-panel" id="news-panel">
-                <section class="card news-section">
-                    <div class="card-header" role="button" tabindex="0" aria-expanded="true">
-                        <h2>财经新闻</h2>
-                        <span class="collapse-icon">⌄</span>
-                    </div>
-                    <div class="card-body">
-                        <div class="news-list" id="realtime-news"></div>
-                    </div>
-                </section>
+        <!-- 3. 资金流向 -->
+        <section class="card capital-section" data-collapsible="true">
+            <div class="card-header" role="button" tabindex="0">
+                <h2>资金流向</h2>
+                <span class="collapse-icon">▼</span>
             </div>
-        </main>
+            <div class="card-body">
+                <div class="capital-grid">
+                    <div class="capital-item">
+                        <div class="capital-label">主力资金</div>
+                        <div class="capital-value" id="main-fund-value">--</div>
+                    </div>
+                    <div class="capital-item">
+                        <div class="capital-label">北向资金</div>
+                        <div class="capital-value" id="north-fund-value">--</div>
+                    </div>
+                </div>
+            </div>
+        </section>
 
-        <footer class="footer">
-            <p>数据仅供参考，不构成投资建议 | 投资有风险，入市需谨慎</p>
-            <p>数据来源：东方财富、新浪财经、财联社</p>
-        </footer>
+        <!-- 4. 板块排行 -->
+        <section class="card sector-section" data-collapsible="true">
+            <div class="card-header" role="button" tabindex="0">
+                <h2>板块排行</h2>
+                <span class="collapse-icon">▼</span>
+            </div>
+            <div class="card-body">
+                <div class="sector-tabs">
+                    <button class="sector-tab active" data-tab="inflow">流入</button>
+                    <button class="sector-tab" data-tab="outflow">流出</button>
+                </div>
+                <div class="sector-panel active" id="sector-panel-inflow">
+                    <ul id="inflow-sectors" class="sector-list"></ul>
+                </div>
+                <div class="sector-panel" id="sector-panel-outflow">
+                    <ul id="outflow-sectors" class="sector-list"></ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- 5. 多日资金流向 -->
+        <section class="card multiday-section" data-collapsible="true">
+            <div class="card-header" role="button" tabindex="0">
+                <h2>多日资金流向</h2>
+                <span class="collapse-icon">▼</span>
+            </div>
+            <div class="card-body">
+                <div class="multiday-container">
+                    <div class="multiday-table-wrapper">
+                        <h4 class="table-title positive">连续流入</h4>
+                        <table class="multiday-table" id="multiday-inflow"></table>
+                    </div>
+                    <div class="multiday-table-wrapper">
+                        <h4 class="table-title negative">连续流出</h4>
+                        <table class="multiday-table" id="multiday-outflow"></table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 6. 强势股 -->
+        <section class="card hot-stocks-section" data-collapsible="true" data-collapsed="true">
+            <div class="card-header" role="button" tabindex="0">
+                <h2>强势股</h2>
+                <span class="collapse-icon">▼</span>
+            </div>
+            <div class="card-body">
+                <div class="hot-stocks-list" id="hot-stocks-list">
+                    <div class="hot-stocks-empty">加载中...</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 7. 龙虎榜 -->
+        <section class="card dragon-tiger-section" data-collapsible="true" data-collapsed="true">
+            <div class="card-header" role="button" tabindex="0">
+                <h2>龙虎榜</h2>
+                <span class="dragon-tiger-header-date" id="dragon-tiger-date"></span>
+                <span class="collapse-icon">▼</span>
+            </div>
+            <div class="card-body" style="display:none">
+                <div class="dragon-tiger-list" id="dragon-tiger-list">
+                    <div class="dragon-tiger-empty">加载中...</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 8. 限售解禁 -->
+        <section class="card lockup-section" data-collapsible="true" data-collapsed="true">
+            <div class="card-header" role="button" tabindex="0">
+                <h2>限售解禁</h2>
+                <span class="collapse-icon">▼</span>
+            </div>
+            <div class="card-body" style="display:none">
+                <div class="lockup-list" id="lockup-list">
+                    <div class="lockup-empty">加载中...</div>
+                </div>
+            </div>
+        </section>
     </div>
 
-    <script src="data.js"></script>
-    <script src="app.js"></script>
+    <!-- ==================== 财经新闻 Tab ==================== -->
+    <div class="tab-panel" id="tab-news">
+        <section class="card news-section">
+            <div class="card-header">
+                <h2>财经新闻</h2>
+            </div>
+            <div class="card-body">
+                <!-- 新闻来源切换 -->
+                <div class="news-source-tabs">
+                    <button class="news-source-tab active" data-source="jin10">金十快讯</button>
+                    <button class="news-source-tab" data-source="eastmoney">东财资讯</button>
+                </div>
+                <div class="news-list" id="news-list">
+                    <div class="news-empty">加载中...</div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+</main>
+
+<!-- 页脚 -->
+<footer class="footer">
+    <p>数据仅供参考，不构成投资建议</p>
+    <p>数据来源：新浪财经 · 金十数据 · 东方财富 · Vercel API</p>
+</footer>
+
+<!-- 设置面板 -->
+<div class="settings-overlay" id="settings-overlay"></div>
+<div class="settings-panel" id="settings-panel">
+    <div class="settings-header">
+        <h3>设置</h3>
+        <button class="settings-close" id="settings-close">✕</button>
+    </div>
+    <div class="settings-body">
+        <div class="settings-row">
+            <label>自动刷新</label>
+            <label class="toggle">
+                <input type="checkbox" id="auto-refresh-toggle" checked>
+                <span class="toggle-track"></span>
+            </label>
+        </div>
+        <div class="settings-section-label">盘中行情 · 指数 / 持仓股 / 资金流</div>
+        <div class="settings-row">
+            <label>交易时段间隔</label>
+            <select id="refresh-interval-main">
+                <option value="10" selected>10秒</option>
+                <option value="30">30秒</option>
+                <option value="60">1分钟</option>
+            </select>
+        </div>
+        <div class="settings-section-label">信号数据 · 板块盘中 / 榜单收盘后</div>
+        <div class="settings-row">
+            <label>有效时段间隔</label>
+            <select id="refresh-interval-signal">
+                <option value="900">15分钟</option>
+                <option value="1800" selected>30分钟</option>
+                <option value="3600">1小时</option>
+                <option value="7200">2小时</option>
+            </select>
+        </div>
+        <div class="settings-section-label">财经新闻 · 全天刷新</div>
+        <div class="settings-row">
+            <label>刷新间隔</label>
+            <select id="refresh-interval-news">
+                <option value="60" selected>1分钟</option>
+                <option value="600">10分钟</option>
+                <option value="1800">30分钟</option>
+            </select>
+        </div>
+    </div>
+</div>
+
+<!-- 自选股数据面板 -->
+<div class="data-overlay" id="data-overlay"></div>
+<div class="data-panel" id="data-panel" role="dialog" aria-modal="true" aria-labelledby="data-panel-title">
+    <div class="settings-header">
+        <h3 id="data-panel-title">自选股数据</h3>
+        <button class="settings-close" id="data-close" aria-label="关闭">✕</button>
+    </div>
+    <div class="settings-body">
+        <div class="data-action">
+            <div>
+                <div class="data-action-title">导出自选股</div>
+                <div class="data-action-desc">包含所有子 tab 和对应股票代码。</div>
+            </div>
+            <button class="data-action-btn" id="export-watchlist-btn" type="button">导出</button>
+        </div>
+        <div class="data-action">
+            <div>
+                <div class="data-action-title">导入自选股</div>
+                <div class="data-action-desc">导入 JSON 后会覆盖当前自选股分组。</div>
+            </div>
+            <button class="data-action-btn secondary" id="import-watchlist-btn" type="button">导入</button>
+            <input type="file" id="import-watchlist-file" accept="application/json,.json" hidden>
+        </div>
+        <div class="watchlist-status data-status" id="data-status"></div>
+    </div>
+</div>
+
+<script src="app.js"></script>
 </body>
 </html>
