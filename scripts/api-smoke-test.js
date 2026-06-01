@@ -7,7 +7,6 @@ const CASES = [
     ['market-data', { type: 'multiday-flow' }],
     ['stock', { codes: '600519,300750' }],
     ['stock-search', { q: '贵州茅台' }],
-    ['hot-stocks', {}],
     ['dragon-tiger', {}],
     ['lockup', {}],
     ['global-news', {}],
@@ -47,18 +46,47 @@ function summarize(data) {
     return String(data);
 }
 
+function hasNonEmptyPayload(name, query, data) {
+    if (name === 'market-data' && query.type === 'capital') {
+        return Boolean(data && data.mainFund && data.northFund && !/暂无/.test(data.mainFund.value) && !/暂无/.test(data.northFund.value));
+    }
+    if (name === 'market-data' && query.type === 'sector') {
+        return Boolean(data && Array.isArray(data.inflow) && Array.isArray(data.outflow) && data.inflow.length && data.outflow.length);
+    }
+    if (name === 'market-data' && query.type === 'multiday-flow') {
+        return Boolean(data && Array.isArray(data.inflowSectors) && Array.isArray(data.outflowSectors) && data.inflowSectors.length && data.outflowSectors.length);
+    }
+    if (name === 'news') {
+        return Boolean(data && Array.isArray(data.data) && data.data.length && data.data[0].data && data.data[0].data.content);
+    }
+    if (name === 'global-news') {
+        return Boolean(Array.isArray(data) && data.length && (data[0].title || data[0].summary));
+    }
+    return Boolean(data);
+}
+
 (async () => {
     let failed = false;
+    const payloads = {};
     for (const [name, query] of CASES) {
         const handlerPath = path.resolve(__dirname, '..', 'api', `${name}.js`);
         delete require.cache[handlerPath];
         const handler = require(handlerPath);
         const result = await call(handler, query);
         const json = JSON.parse(result.body);
-        const optionalEmpty = name === 'market-data' && ['capital', 'sector', 'multiday-flow'].includes(query.type);
-        const ok = result.status === 200 && json.success && (json.data || optionalEmpty);
+        const ok = result.status === 200 && json.success && hasNonEmptyPayload(name, query, json.data);
         console.log(`${ok ? 'PASS' : 'FAIL'} ${name} ${JSON.stringify(query)} -> ${result.status} ${summarize(json.data || json.message)}`);
         if (!ok) failed = true;
+        payloads[name] = json.data;
+    }
+
+    const jin10Texts = new Set(((payloads.news && payloads.news.data) || []).map((item) => item.data && item.data.content).filter(Boolean));
+    const eastmoneyTexts = ((payloads['global-news']) || []).map((item) => item.title || item.summary).filter(Boolean);
+    const overlapping = eastmoneyTexts.filter((text) => jin10Texts.has(text)).length;
+    const distinctNews = jin10Texts.size > 0 && eastmoneyTexts.length > 0 && overlapping < Math.min(jin10Texts.size, eastmoneyTexts.length);
+    console.log(`${distinctNews ? 'PASS' : 'FAIL'} news-source-distinct -> overlap ${overlapping}`);
+    if (!distinctNews) {
+        failed = true;
     }
     if (failed) process.exit(1);
 })();

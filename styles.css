@@ -658,76 +658,6 @@ body {
 .section-label.positive { color: var(--red); }
 .section-label.negative { color: var(--green); }
 
-/* ---------- 强势股 ---------- */
-.hot-stocks-list { }
-.hot-stocks-empty {
-    text-align: center;
-    padding: 20px 16px;
-    color: var(--text-tertiary);
-    font-size: 13px;
-}
-
-.hot-stock-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--border-subtle);
-}
-
-.hot-stock-item:last-child { border-bottom: none; }
-
-.hot-stock-rank {
-    flex: 0 0 24px;
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--text-tertiary);
-    text-align: center;
-}
-
-.hot-stock-info {
-    flex: 0 1 100px;
-    min-width: 0;
-}
-
-.hot-stock-name {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text-primary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 100px;
-}
-
-.hot-stock-code {
-    font-size: 10px;
-    color: var(--text-tertiary);
-    font-family: var(--mono);
-}
-
-.hot-stock-reason {
-    flex: 1;
-    font-size: 11px;
-    color: var(--text-secondary);
-    line-height: 1.4;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.hot-stock-change {
-    flex: 0 0 auto;
-    font-size: 14px;
-    font-weight: 700;
-    font-family: var(--mono);
-    min-width: 60px;
-    text-align: right;
-}
-
-.hot-stock-change.positive { color: var(--red); }
-.hot-stock-change.negative { color: var(--green); }
-
 /* ---------- 龙虎榜 ---------- */
 .dragon-tiger-header-date,
 .watchlist-header-time {
@@ -942,6 +872,10 @@ body {
 .multiday-table th {
     color: var(--text-tertiary);
     font-weight: 500;
+}
+
+.multiday-table th:first-child {
+    text-align: left;
 }
 
 .sector-name-cell {

@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#0f1419">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>投资看板</title>
+    <title>资产总览</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -14,7 +14,7 @@
 <!-- 头部 -->
 <header class="header" id="header">
     <div class="header-left">
-        <h1 id="header-title">投资看板</h1>
+        <h1 id="header-title">资产总览</h1>
         <div class="header-subtitle" id="last-updated">等待更新</div>
     </div>
     <div class="header-right">
@@ -25,13 +25,14 @@
 
 <!-- Tab 栏 -->
 <nav class="tab-bar">
-    <button class="tab-btn active" data-tab="dashboard">投资看板</button>
-    <button class="tab-btn" data-tab="news">财经新闻</button>
+    <button class="tab-btn active" data-tab="dashboard">资产总览</button>
+    <button class="tab-btn" data-tab="signals">市场信号</button>
+    <button class="tab-btn" data-tab="news">财经快讯</button>
 </nav>
 
 <main id="main-content">
 
-    <!-- ==================== 投资看板 Tab ==================== -->
+    <!-- ==================== 资产总览 Tab ==================== -->
     <div class="tab-panel active" id="tab-dashboard">
 
         <!-- 1. 大盘指数 -->
@@ -133,7 +134,12 @@
             </div>
         </section>
 
-        <!-- 5. 多日资金流向 -->
+    </div>
+
+    <!-- ==================== 市场信号 Tab ==================== -->
+    <div class="tab-panel" id="tab-signals">
+
+        <!-- 1. 多日资金流向 -->
         <section class="card multiday-section" data-collapsible="true">
             <div class="card-header" role="button" tabindex="0">
                 <h2>多日资金流向</h2>
@@ -153,20 +159,7 @@
             </div>
         </section>
 
-        <!-- 6. 强势股 -->
-        <section class="card hot-stocks-section" data-collapsible="true" data-collapsed="true">
-            <div class="card-header" role="button" tabindex="0">
-                <h2>强势股</h2>
-                <span class="collapse-icon">▼</span>
-            </div>
-            <div class="card-body">
-                <div class="hot-stocks-list" id="hot-stocks-list">
-                    <div class="hot-stocks-empty">加载中...</div>
-                </div>
-            </div>
-        </section>
-
-        <!-- 7. 龙虎榜 -->
+        <!-- 2. 龙虎榜 -->
         <section class="card dragon-tiger-section" data-collapsible="true" data-collapsed="true">
             <div class="card-header" role="button" tabindex="0">
                 <h2>龙虎榜</h2>
@@ -180,7 +173,7 @@
             </div>
         </section>
 
-        <!-- 8. 限售解禁 -->
+        <!-- 3. 限售解禁 -->
         <section class="card lockup-section" data-collapsible="true" data-collapsed="true">
             <div class="card-header" role="button" tabindex="0">
                 <h2>限售解禁</h2>
@@ -194,11 +187,11 @@
         </section>
     </div>
 
-    <!-- ==================== 财经新闻 Tab ==================== -->
+    <!-- ==================== 财经快讯 Tab ==================== -->
     <div class="tab-panel" id="tab-news">
         <section class="card news-section">
             <div class="card-header">
-                <h2>财经新闻</h2>
+                <h2>财经快讯</h2>
             </div>
             <div class="card-body">
                 <!-- 新闻来源切换 -->

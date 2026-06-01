@@ -1,10 +1,10 @@
 // ================================================================
-// 投资看板 — App
+// 资产总览 — App
 // ================================================================
 
 // ---------- State ----------
 let refreshIntervalMain = null;   // 大盘指数 + 自选股
-let refreshIntervalSignal = null; // 板块 + 强势股 + 龙虎榜 + 解禁
+let refreshIntervalSignal = null; // 板块 + 龙虎榜 + 解禁
 let refreshIntervalNews = null;   // 财经新闻
 let isAutoRefresh = true;
 let refreshSecondsMain = 10;
@@ -13,7 +13,8 @@ let refreshSecondsNews = 60;
 let currentTab = 'dashboard';
 let activeWatchTabId = 'default';
 const API_BASE = '/api';
-const TAB_TITLES = { dashboard: '投资看板', news: '财经新闻' };
+const VALID_TABS = ['dashboard', 'signals', 'news'];
+const TAB_TITLES = { dashboard: '资产总览', signals: '市场信号', news: '财经快讯' };
 
 // 实时数据缓存
 let liveIndexData = null;
@@ -41,12 +42,12 @@ function initTabs() {
 
 function handleHash() {
     var hash = window.location.hash.replace('#', '');
-    var tab = (hash === 'news') ? 'news' : 'dashboard';
+    var tab = VALID_TABS.includes(hash) ? hash : 'dashboard';
     switchTab(tab, false);
 }
 
 function switchTab(tab, updateHash) {
-    if (tab !== 'dashboard' && tab !== 'news') return;
+    if (!VALID_TABS.includes(tab)) return;
     currentTab = tab;
 
     // Update tab buttons
@@ -60,14 +61,19 @@ function switchTab(tab, updateHash) {
     });
 
     // Update header title
-    document.getElementById('header-title').textContent = TAB_TITLES[tab] || '投资看板';
+    document.getElementById('header-title').textContent = TAB_TITLES[tab] || '资产总览';
 
     // Update URL hash
     if (updateHash !== false) {
         window.location.hash = tab === 'dashboard' ? '' : '#' + tab;
     }
 
-    // Load news data when switching to news tab
+    // Load tab-specific data when switching panels.
+    if (tab === 'signals') {
+        loadMultiDayFlowData();
+        loadDragonTigerData();
+        loadLockupData();
+    }
     if (tab === 'news') loadNewsData();
 }
 
@@ -292,11 +298,9 @@ function loadIntradayData() {
 
 function loadIntradaySignalData() {
     loadSectorData();
-    loadHotStocksData();
 }
 
 function loadAfterCloseDailyData() {
-    loadHotStocksData();
     loadDragonTigerData();
     loadLockupData();
 }
@@ -540,39 +544,6 @@ async function loadMultiDayFlowData() {
     } catch (e) {
         renderTableMessage('multiday-inflow', '暂无可靠真实多日资金数据');
         renderTableMessage('multiday-outflow', '暂无可靠真实多日资金数据');
-    }
-}
-
-// ---------- 强势股（同花顺）----------
-async function loadHotStocksData() {
-    var container = document.getElementById('hot-stocks-list');
-    if (!container) return;
-
-    try {
-        var res = await fetch(apiUrl('/hot-stocks'));
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        var json = await res.json();
-
-        if (!json.success || !json.data || !json.data.stocks || json.data.stocks.length === 0) {
-            container.innerHTML = renderEmpty('暂无强势股数据');
-            return;
-        }
-
-        var stocks = json.data.stocks.slice(0, 30);
-        var html = '';
-        stocks.forEach(function (s, idx) {
-            var cls = s.changePct > 0 ? 'positive' : s.changePct < 0 ? 'negative' : '';
-            var pctStr = s.changePct > 0 ? '+' + s.changePct + '%' : s.changePct + '%';
-            html += '<div class="hot-stock-item">';
-            html += '  <span class="hot-stock-rank">' + (idx + 1) + '</span>';
-            html += '  <div class="hot-stock-info"><div class="hot-stock-name">' + escapeHtml(s.name) + '</div><div class="hot-stock-code">' + escapeHtml(s.code) + '</div></div>';
-            html += '  <span class="hot-stock-reason" title="' + escapeHtml(s.reason) + '">' + escapeHtml(s.reason) + '</span>';
-            html += '  <span class="hot-stock-change ' + cls + '">' + escapeHtml(pctStr) + '</span>';
-            html += '</div>';
-        });
-        if (html) container.innerHTML = html;
-    } catch (e) {
-        container.innerHTML = renderEmpty('强势股加载失败');
     }
 }
 
