@@ -14,18 +14,24 @@ A股实时行情看板，部署在 Vercel 上。
 ## 技术栈
 
 - **前端**: 原生 HTML + CSS + JavaScript
-- **实时行情**: 新浪财经 API（通过 Vercel Serverless Function 代理，解决跨域）
+- **实时行情**: 东方财富 / 腾讯财经等真实行情接口（通过 Vercel Serverless Function 代理，解决跨域）
 - **数据持久化**: 浏览器 localStorage（自选股列表）
 - **部署**: Vercel
 
 ## 本地开发
 
 ```bash
-# 安装 Vercel CLI
-npm install -g vercel
+npm run dev
+```
 
-# 本地启动
-vercel dev
+本地服务会同时托管静态页面和 `api/` 代理，默认地址为 `http://127.0.0.1:4173`。
+
+```bash
+# 语法检查
+npm run check
+
+# 真实 API 冒烟测试
+npm run test:api
 ```
 
 ## 部署
@@ -40,10 +46,11 @@ vercel --prod
 - 自选股列表保存在浏览器 `localStorage` 中，清除浏览器缓存会丢失
 - 实时行情通过 `/api/stock` 代理获取，不依赖任何外部前端库
 - 支持沪深 A 股代码（6位数字），自动识别 sh/sz 前缀
+- 项目不再内置静态假数据；外部真实数据源不可用时，页面会显示失败态或空态
 
 ## 数据来源
 
-- **实时行情**: 新浪财经 (hq.sinajs.cn) / 腾讯财经 (qt.gtimg.cn)
-- **板块/榜单/资金流**: 东方财富
+- **实时行情 / 搜索 / 榜单 / 解禁 / 新闻**: 东方财富、腾讯财经等公开接口
+- **资金 / 板块**: 当前不使用不稳定或无法验证的接口填充数值；没有可靠真实源时显示空态
 
 > ⚠️ 数据仅供参考，不构成投资建议。投资有风险，入市需谨慎。

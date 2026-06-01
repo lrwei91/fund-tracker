@@ -426,7 +426,6 @@ async function loadIndexData() {
         Object.keys(result.data).forEach(function (id) { updateIndexUI(id, result.data[id]); });
         setLastUpdated('行情已更新');
     } catch (e) {
-        console.log('指数数据获取失败:', e.message);
         if (!liveIndexData) setLastUpdated('行情获取失败');
     }
 }
@@ -442,7 +441,7 @@ async function loadCapitalData() {
             newData = result.data;
         }
     } catch (e) {
-        console.log('资金数据获取失败:', e.message);
+        newData = null;
     }
 
     if (newData) {
@@ -453,8 +452,20 @@ async function loadCapitalData() {
     if (!cap) return;
     var mf = document.getElementById('main-fund-value');
     var nf = document.getElementById('north-fund-value');
-    if (mf) { mf.textContent = cap.mainFund.value; mf.className = 'capital-value'; mf.classList.add(cap.mainFund.isPositive ? 'positive' : 'negative'); }
-    if (nf) { nf.textContent = cap.northFund.value; nf.className = 'capital-value'; nf.classList.add(cap.northFund.isPositive ? 'positive' : 'negative'); }
+    if (mf) {
+        mf.textContent = cap.mainFund.value;
+        mf.className = 'capital-value';
+        if (typeof cap.mainFund.isPositive === 'boolean') {
+            mf.classList.add(cap.mainFund.isPositive ? 'positive' : 'negative');
+        }
+    }
+    if (nf) {
+        nf.textContent = cap.northFund.value;
+        nf.className = 'capital-value';
+        if (typeof cap.northFund.isPositive === 'boolean') {
+            nf.classList.add(cap.northFund.isPositive ? 'positive' : 'negative');
+        }
+    }
 }
 
 // ---------- 板块排行 ----------
@@ -464,11 +475,11 @@ async function loadSectorData() {
         var res = await fetch(apiUrl('/market-data', { type: 'sector' }));
         if (!res.ok) throw new Error('HTTP ' + res.status);
         var result = await res.json();
-        if (result.success && result.data && result.data.inflow && result.data.inflow.length > 0) {
+        if (result.success && result.data && result.data.inflow) {
             newData = result.data;
         }
     } catch (e) {
-        console.log('板块数据获取失败:', e.message);
+        newData = null;
     }
 
     if (newData) {
@@ -482,12 +493,12 @@ async function loadSectorData() {
     if (inflow) {
         inflow.innerHTML = (sectors.inflow || []).slice(0, 5).map(function (s) {
             return '<li><span class="sector-name">' + escapeHtml(s.name) + '</span><span class="sector-amount positive">' + escapeHtml(s.value) + '</span></li>';
-        }).join('') || '<li class="list-empty">暂无流入数据</li>';
+        }).join('') || '<li class="list-empty">暂无可靠真实流入数据</li>';
     }
     if (outflow) {
         outflow.innerHTML = (sectors.outflow || []).slice(0, 5).map(function (s) {
             return '<li><span class="sector-name">' + escapeHtml(s.name) + '</span><span class="sector-amount negative">' + escapeHtml(s.value) + '</span></li>';
-        }).join('') || '<li class="list-empty">暂无流出数据</li>';
+        }).join('') || '<li class="list-empty">暂无可靠真实流出数据</li>';
     }
 }
 
@@ -519,12 +530,16 @@ async function loadMultiDayFlowData() {
         var result = await res.json();
         if (!result.success || !result.data || !result.data.dates) throw new Error('数据异常');
         var flow = result.data;
+        if (!(flow.inflowSectors || []).length && !(flow.outflowSectors || []).length) {
+            renderTableMessage('multiday-inflow', '暂无可靠真实多日资金数据');
+            renderTableMessage('multiday-outflow', '暂无可靠真实多日资金数据');
+            return;
+        }
         renderTable('multiday-inflow', flow.inflowSectors || [], true);
         renderTable('multiday-outflow', flow.outflowSectors || [], false);
     } catch (e) {
-        console.error('多日资金流向获取失败:', e);
-        renderTableMessage('multiday-inflow', '多日资金流向加载失败');
-        renderTableMessage('multiday-outflow', '多日资金流向加载失败');
+        renderTableMessage('multiday-inflow', '暂无可靠真实多日资金数据');
+        renderTableMessage('multiday-outflow', '暂无可靠真实多日资金数据');
     }
 }
 
@@ -557,7 +572,6 @@ async function loadHotStocksData() {
         });
         if (html) container.innerHTML = html;
     } catch (e) {
-        console.error('强势股获取失败:', e);
         container.innerHTML = renderEmpty('强势股加载失败');
     }
 }
@@ -1069,28 +1083,6 @@ async function loadSingleWatchQuote(code) {
     }
 }
 
-function updateWatchItem(item, code, data) {
-    var name = data.name || code;
-    var price = data.price || '--';
-    var changePercent = Number(data.changePercent || 0);
-    var volume = data.volume || '--';
-    var prevMap = getPrevChangePct();
-    var prev = prevMap[code];
-    var arrow = trendArrow(changePercent, prev);
-    var cls = changePercent > 0 ? 'positive' : changePercent < 0 ? 'negative' : 'neutral';
-    var pt = changePercent !== 0 ? (changePercent > 0 ? '+' + changePercent + '%' : changePercent + '%') : '0.00%';
-    prevMap[code] = changePercent;
-    savePrevChangePct(prevMap);
-    item.setAttribute('data-pct', changePercent);
-    item.querySelector('.watchlist-stock-name').textContent = name;
-    var changeEl = item.querySelector('.watchlist-stock-change');
-    changeEl.className = 'watchlist-stock-change ' + cls;
-    changeEl.innerHTML = escapeHtml(pt) + ' <span class="trend-arrow">' + escapeHtml(arrow) + '</span>';
-    var priceEl = item.querySelector('.watchlist-stock-price');
-    priceEl.textContent = price;
-    priceEl.className = 'watchlist-stock-price ' + cls;
-}
-
 function renderWatchItem(code, name, price, changePercent, volume) {
     var cls = changePercent > 0 ? 'positive' : changePercent < 0 ? 'negative' : 'neutral';
     var pt = changePercent !== 0 ? (changePercent > 0 ? '+' + changePercent + '%' : changePercent + '%') : '0.00%';
@@ -1211,6 +1203,6 @@ async function loadEastmoneyNews() {
         });
         if (html) container.innerHTML = html;
     } catch (e) {
-        console.error('东财资讯获取失败:', e);
+        container.innerHTML = renderEmpty('东财资讯加载失败');
     }
 }
