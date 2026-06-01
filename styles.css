@@ -34,6 +34,10 @@
 
 html { -webkit-text-size-adjust: 100%; }
 
+/* ---------- Hide global scrollbar ---------- */
+::-webkit-scrollbar { display: none; }
+* { scrollbar-width: none; -ms-overflow-style: none; }
+
 body {
     font-family: var(--font);
     background: var(--bg-primary);
