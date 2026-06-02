@@ -1,5 +1,5 @@
 // ================================================================
-// 资产总览 — App
+// 市场行情 — App
 // ================================================================
 
 // ---------- State ----------
@@ -15,7 +15,7 @@ let currentTab = 'dashboard';
 let activeWatchTabId = 'default';
 const API_BASE = '/api';
 const VALID_TABS = ['dashboard', 'signals', 'news'];
-const TAB_TITLES = { dashboard: '资产总览', signals: '市场信号', news: '财经快讯' };
+const TAB_TITLES = { dashboard: '市场行情', signals: '市场信号', news: '财经快讯' };
 const SETTINGS_KEY = 'fund_tracker_settings';
 const ACTIVE_TAB_KEY = 'fund_tracker_active_main_tab';
 const NEWS_SOURCE_KEY = 'fund_tracker_news_source';
@@ -85,7 +85,7 @@ function switchTab(tab, updateHash) {
     });
 
     // Update header title
-    document.getElementById('header-title').textContent = TAB_TITLES[tab] || '资产总览';
+    document.getElementById('header-title').textContent = TAB_TITLES[tab] || '市场行情';
 
     // Update URL hash
     if (updateHash !== false) {
