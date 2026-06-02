@@ -6,6 +6,7 @@
 let refreshIntervalMain = null;   // 大盘指数 + 自选股
 let refreshIntervalSignal = null; // 资金流 + 板块
 let refreshIntervalNews = null;   // 财经新闻
+let refreshIntervalDaily = null;  // 日级数据（多日资金流 / 龙虎榜 / 解禁）
 let isAutoRefresh = true;
 let refreshSecondsMain = 10;
 let refreshSecondsSignal = 1800;
@@ -390,8 +391,12 @@ function writeTimedCache(key, data) {
 function setLastUpdated(label) {
     var el = document.getElementById('last-updated');
     if (!el) return;
-    var now = new Date();
-    var time = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    var time = new Date().toLocaleTimeString('zh-CN', {
+        timeZone: 'Asia/Shanghai',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+    });
     el.textContent = (label || '已更新') + ' · ' + time;
 }
 
@@ -413,7 +418,7 @@ function getShanghaiNow() {
 }
 
 function isTradingWeekday(weekday) {
-    return ['周一', '周二', '周三', '周四', '周五', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(weekday);
+    return ['周一', '周二', '周三', '周四', '周五'].includes(weekday);
 }
 
 function isIntradayRefreshWindow() {
@@ -488,12 +493,14 @@ function startAllAutoRefresh() {
     startMainAutoRefresh();
     startSignalAutoRefresh();
     startNewsAutoRefresh();
+    startDailyRefresh();
 }
 
 function stopAllAutoRefresh() {
     stopMainAutoRefresh();
     stopSignalAutoRefresh();
     stopNewsAutoRefresh();
+    stopDailyRefresh();
 }
 
 function startMainAutoRefresh() {
@@ -534,6 +541,22 @@ function stopNewsAutoRefresh() {
     if (refreshIntervalNews) { clearInterval(refreshIntervalNews); refreshIntervalNews = null; }
 }
 
+function startDailyRefresh() {
+    stopDailyRefresh();
+    refreshIntervalDaily = setInterval(function () {
+        // 收盘后窗口（16:00 起）触发日级数据刷新
+        if (isAfterCloseDailyWindow()) {
+            loadMultiDayFlowData();
+            loadDragonTigerData();
+            loadLockupData();
+        }
+    }, 30 * 60 * 1000);
+}
+
+function stopDailyRefresh() {
+    if (refreshIntervalDaily) { clearInterval(refreshIntervalDaily); refreshIntervalDaily = null; }
+}
+
 // ---------- Load All ----------
 function loadAllData() {
     loadIntradayData();
@@ -547,14 +570,7 @@ function loadAllData() {
 
 
 // ---------- 大盘指数 ----------
-// 指数中文名映射（腾讯API返回的代码不是中文）
-var INDEX_NAMES = {
-    shangzhi: '上证指数',
-    shengzheng: '深证成指',
-    chuangye: '创业板指',
-    zhuanke50: '科创50',
-};
-
+// 指数中文名由 HTML 写死（首屏即正确，无需依赖接口返回）
 function updateIndexUI(id, data) {
     if (!data) return;
     var v = document.getElementById(id + '-value');
@@ -563,7 +579,7 @@ function updateIndexUI(id, data) {
     if (!v || !c) return;
     v.textContent = data.value;
     c.textContent = data.change;
-    if (n) n.textContent = INDEX_NAMES[id] || data.name;
+    if (n && data.name) n.textContent = data.name;
     v.className = 'index-value';
     c.className = 'index-change';
     var cls = data.changePercent > 0 ? 'positive' : data.changePercent < 0 ? 'negative' : 'neutral';
@@ -686,20 +702,6 @@ async function loadMultiDayFlowData() {
     var todayKey = getShanghaiDateKey();
     var cached = readMultiDayFlowCache();
 
-    function renderTable(id, sectors, trendUp) {
-        var table = document.getElementById(id);
-        if (!table) return;
-        table.innerHTML = '<tr><th>板块</th>' + flow.dates.map(function (d) { return '<th>' + escapeHtml(d) + '</th>'; }).join('') + '<th>趋势</th></tr>';
-        sectors.forEach(function (s) {
-            var rowClass = s.consecutiveDays >= 3 ? (trendUp ? 'hot-sector' : 'cold-sector') : '';
-            var html = '';
-            html += '<td class="sector-name-cell">' + escapeHtml(s.name) + '</td>';
-            s.data.forEach(function (v) { html += '<td class="' + (v[0] === '+' ? 'flow-positive' : 'flow-negative') + '">' + escapeHtml(v) + '</td>'; });
-            var badge = s.consecutiveDays >= 3 ? '<span class="consecutive-badge' + (trendUp ? '' : ' outflow') + '">连续' + s.consecutiveDays + '日</span>' : '';
-            table.innerHTML += '<tr class="' + rowClass + '">' + html + '<td class="trend-cell">' + (s.trend === 'up' ? '↗' : '↘') + ' ' + badge + '</td></tr>';
-        });
-    }
-
     function renderTableMessage(id, message) {
         var table = document.getElementById(id);
         if (!table) return;
@@ -707,6 +709,20 @@ async function loadMultiDayFlowData() {
     }
 
     function renderFlow(flow) {
+        function renderTable(id, sectors, trendUp) {
+            var table = document.getElementById(id);
+            if (!table) return;
+            table.innerHTML = '<tr><th>板块</th>' + (flow.dates || []).map(function (d) { return '<th>' + escapeHtml(d) + '</th>'; }).join('') + '<th>趋势</th></tr>';
+            sectors.forEach(function (s) {
+                var rowClass = s.consecutiveDays >= 3 ? (trendUp ? 'hot-sector' : 'cold-sector') : '';
+                var html = '';
+                html += '<td class="sector-name-cell">' + escapeHtml(s.name) + '</td>';
+                s.data.forEach(function (v) { html += '<td class="' + (v[0] === '+' ? 'flow-positive' : 'flow-negative') + '">' + escapeHtml(v) + '</td>'; });
+                var badge = s.consecutiveDays >= 3 ? '<span class="consecutive-badge' + (trendUp ? '' : ' outflow') + '">连续' + s.consecutiveDays + '日</span>' : '';
+                table.innerHTML += '<tr class="' + rowClass + '">' + html + '<td class="trend-cell">' + (s.trend === 'up' ? '↗' : '↘') + ' ' + badge + '</td></tr>';
+            });
+        }
+
         if (!(flow.inflowSectors || []).length && !(flow.outflowSectors || []).length) {
             renderTableMessage('multiday-inflow', '暂无可靠真实多日资金数据');
             renderTableMessage('multiday-outflow', '暂无可靠真实多日资金数据');
@@ -1243,7 +1259,6 @@ async function addStockToWatchlist() {
         list.push(code);
         saveActiveWatchlist(list);
         input.value = '';
-        renderWatchTabs();
         showWatchStatus((match.name || code) + ' 已添加');
         renderWatchlist();
         loadSingleWatchQuote(code);
@@ -1258,18 +1273,20 @@ async function addStockToWatchlist() {
 function removeStockFromWatchlist(code) {
     var list = getWatchlist().filter(function (c) { return c !== code; });
     saveActiveWatchlist(list);
-    renderWatchTabs();
     renderWatchlist();
     showWatchStatus('已移除');
 }
 
 function showWatchStatus(msg, type) {
     var grid = document.getElementById('watchlist-grid');
-    var el = document.querySelector('.watchlist-status');
+    if (!grid) return;
+    var section = grid.closest('.watchlist-section');
+    var scope = section || document;
+    var el = scope.querySelector(':scope > .card-body > .watchlist-status, :scope > .watchlist-status');
     if (!el) {
         el = document.createElement('div');
         el.className = 'watchlist-status';
-        grid.parentNode.appendChild(el);
+        (section || grid.parentNode).appendChild(el);
     }
     el.textContent = msg;
     el.className = 'watchlist-status' + (type === 'error' ? ' error' : '');
@@ -1336,6 +1353,7 @@ async function loadWatchlistData() {
     } catch (e) {
         console.error('自选股失败:', e);
         showWatchStatus('自选股行情加载失败', 'error');
+        setLastUpdated('加载失败');
         renderWatchlist();
     }
 }
@@ -1358,6 +1376,7 @@ async function loadSingleWatchQuote(code) {
     } catch (e) {
         console.error('新增股票行情获取失败:', e);
         showWatchStatus('已添加，行情稍后自动刷新', 'error');
+        setLastUpdated('加载失败');
         renderWatchlist();
     }
 }
@@ -1397,11 +1416,8 @@ function formatJin10Time(timeStr) {
     if (parts.length < 2) return timeStr;
     var datePart = parts[0];
     var timePart = parts[1];
-    var today = new Date();
-    var todayStr = today.getFullYear() + '-' +
-        String(today.getMonth() + 1).padStart(2, '0') + '-' +
-        String(today.getDate()).padStart(2, '0');
-    if (datePart === todayStr) {
+    var today = getShanghaiDateKey();
+    if (datePart === today) {
         return timePart.substring(0, 5);
     }
     return datePart.substring(5) + ' ' + timePart.substring(0, 5);
