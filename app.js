@@ -650,11 +650,49 @@ function renderRealtimeFromCache() {
     if (codes.length > 0) {
         renderWatchlist();
         anyRendered = true;
+        // 非交易时段:把 watchQuoteCache 里没数据的"待刷新"股票补拉一次
+        // (收市后用户刷新页面,缓存里没数据就不应该一直显示"待刷新")
+        refreshStaleWatchQuotes();
     }
 
     if (!anyRendered) {
         setLastUpdated('非交易时段 · 暂无缓存');
     }
+}
+
+// 非交易时段(收市/盘前/午休/深夜)刷新页面时,把 watchQuoteCache 里缺失的股票补拉一次
+// 节流 5 分钟,避免用户反复刷新页面打 API
+const WATCH_REFRESH_THROTTLE_KEY = 'fund_tracker_watch_refresh_throttle';
+const WATCH_REFRESH_THROTTLE_MS = 5 * 60 * 1000;
+
+function refreshStaleWatchQuotes() {
+    var codes = getAllWatchCodes();
+    if (codes.length === 0) return;
+
+    var stale = codes.filter(function (c) { return !watchQuoteCache[c]; });
+    if (stale.length === 0) return;
+
+    var lastPull = 0;
+    try { lastPull = parseInt(localStorage.getItem(WATCH_REFRESH_THROTTLE_KEY) || '0', 10) || 0; } catch (e) {}
+    if (Date.now() - lastPull < WATCH_REFRESH_THROTTLE_MS) return;
+
+    fetch(apiUrl('/stock', { codes: stale.join(',') }))
+        .then(function (res) { return res.ok ? res.json() : null; })
+        .then(function (result) {
+            if (!result || !result.success || !result.data) return;
+            Object.keys(result.data).forEach(function (code) {
+                var d = result.data[code];
+                if (d && d.price !== '0.00') watchQuoteCache[code] = d;
+            });
+            if (result.time) {
+                watchQuoteUpdateTime = result.time;
+                persistWatchQuoteUpdateTime(result.time);
+            }
+            persistWatchQuoteCache();
+            renderWatchlist();
+            try { localStorage.setItem(WATCH_REFRESH_THROTTLE_KEY, String(Date.now())); } catch (e) {}
+        })
+        .catch(function () { /* 非交易时段拉取失败属正常,静默 */ });
 }
 
 function renderCapitalUI(cap) {
