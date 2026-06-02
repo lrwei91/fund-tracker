@@ -510,9 +510,10 @@ body {
 .watchlist-stock-change.neutral { color: var(--text-tertiary); }
 
 .trend-arrow {
-    font-size: 11px;
+    font-size: 15px;
     flex-shrink: 0;
-    opacity: 0.7;
+    opacity: 0.85;
+    line-height: 1;
 }
 
 .watchlist-remove-btn {
