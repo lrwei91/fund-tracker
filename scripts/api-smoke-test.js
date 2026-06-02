@@ -60,7 +60,7 @@ function hasNonEmptyPayload(name, query, data) {
         return Boolean(data && Array.isArray(data.data) && data.data.length && data.data[0].data && data.data[0].data.content);
     }
     if (name === 'global-news') {
-        return Boolean(Array.isArray(data) && data.length && (data[0].title || data[0].summary));
+        return Boolean(data && Array.isArray(data.data) && data.data.length && (data.data[0].title || data.data[0].summary));
     }
     return Boolean(data);
 }
@@ -81,7 +81,7 @@ function hasNonEmptyPayload(name, query, data) {
     }
 
     const jin10Texts = new Set(((payloads.news && payloads.news.data) || []).map((item) => item.data && item.data.content).filter(Boolean));
-    const eastmoneyTexts = ((payloads['global-news']) || []).map((item) => item.title || item.summary).filter(Boolean);
+    const eastmoneyTexts = ((payloads['global-news'] && payloads['global-news'].data) || []).map((item) => item.title || item.summary).filter(Boolean);
     const overlapping = eastmoneyTexts.filter((text) => jin10Texts.has(text)).length;
     const distinctNews = jin10Texts.size > 0 && eastmoneyTexts.length > 0 && overlapping < Math.min(jin10Texts.size, eastmoneyTexts.length);
     console.log(`${distinctNews ? 'PASS' : 'FAIL'} news-source-distinct -> overlap ${overlapping}`);

@@ -16,12 +16,25 @@ module.exports = async function handler(req, res) {
             if (!/^\d{6}$/.test(code) || data.length < 33) return [code, null];
             const price = toNumber(data[3]);
             const changePercent = toNumber(data[32]);
+            // 真实今日开盘价(腾讯接口 data[5])优先;若该字段缺失或异常,
+            // fallback 到"基于昨收反推"——即忽略今日跳空,近似用昨收做基准
+            let openPrice = toNumber(data[5]);
+            if (openPrice === null || openPrice <= 0) {
+                if (price !== null && changePercent !== null) {
+                    const prevClose = price / (1 + changePercent / 100);
+                    if (Number.isFinite(prevClose) && prevClose > 0) {
+                        openPrice = Number(prevClose.toFixed(2));
+                    }
+                }
+            }
             return [code, {
                 code,
                 name: data[1] || code,
                 price: price === null ? '--' : price.toFixed(2),
+                priceValue: price,
                 changePercent: changePercent || 0,
                 volume: data[36] || data[6] || '--',
+                openPrice: openPrice,
             }];
         });
         const data = {};

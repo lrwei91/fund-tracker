@@ -2,16 +2,26 @@ const { fail, fetchJson, ok } = require('./_utils');
 
 function stripHtml(text) {
     return String(text || '')
-        .replace(/<br\s*\/?>/gi, '\n')
+        // <br> 改成空格,避免字面换行符破坏 JSON 字符串
+        .replace(/<br\s*\/?>/gi, ' ')
+        .replace(/<\/p\s*>/gi, ' ')
         .replace(/<[^>]*>/g, '')
         .replace(/&amp;/g, '&')
         .replace(/&lt;/g, '<')
         .replace(/&gt;/g, '>')
         .replace(/&quot;/g, '"')
         .replace(/&#39;/g, "'")
-        .replace(/\s+\n/g, '\n')
-        .replace(/\n\s+/g, '\n')
+        .replace(/\s+/g, ' ')
         .trim();
+}
+
+function parseCursor(raw) {
+    if (!raw) return null;
+    try {
+        const obj = JSON.parse(raw);
+        if (obj && (obj.maxTime || obj.lastId)) return obj;
+    } catch (e) { /* ignore */ }
+    return null;
 }
 
 async function fetchJin10Page(cursor) {
@@ -35,51 +45,60 @@ async function fetchJin10Page(cursor) {
 
 module.exports = async function handler(req, res) {
     try {
+        const limit = Math.max(1, Math.min(40, parseInt(req.query.limit, 10) || 20));
+        const cursor = parseCursor(req.query.cursor);
+        // 分页模式:沿 cursor 取一页(默认 20),返回 nextCursor 给前端继续拉
         const seen = new Set();
         const rows = [];
-        let cursor = null;
+        let nextCursor = null;
+        let exhausted = false;
 
-        for (let page = 0; page < 3 && rows.length < 20; page += 1) {
-            let json;
-            try {
-                json = await fetchJin10Page(cursor);
-            } catch (error) {
-                if (rows.length) break;
-                throw error;
-            }
-            if (!json || json.status !== 200 || !Array.isArray(json.data)) {
-                if (rows.length) break;
-                throw new Error(`金十返回异常 ${json && json.status}`);
-            }
-            if (!json.data.length) break;
-
-            json.data.forEach((item) => {
-                const id = String(item.id || '');
-                if (!id || seen.has(id)) return;
-                seen.add(id);
-
-                const data = item.data || {};
-                const content = stripHtml(data.content || data.title || '');
-                if (!content || data.lock || /VIP专享|解锁直达|升级/.test(content)) return;
-
-                rows.push({
-                    id,
-                    time: item.time || '',
-                    data: { content },
-                    url: data.link || 'https://www.jin10.com/flash',
-                });
-            });
-
-            const last = json.data[json.data.length - 1];
-            cursor = {
-                maxTime: last && last.time,
-                lastId: last && last.id,
-            };
-            if (!cursor.maxTime && !cursor.lastId) break;
+        let json;
+        try {
+            json = await fetchJin10Page(cursor);
+        } catch (error) {
+            // 首屏无可用缓存,直接报错
+            if (!rows.length) throw error;
+        }
+        if (!json || json.status !== 200 || !Array.isArray(json.data)) {
+            throw new Error(`金十返回异常 ${json && json.status}`);
         }
 
-        if (!rows.length) throw new Error('金十公开快讯为空');
-        return ok(res, { data: rows });
+        json.data.forEach((item) => {
+            const id = String(item.id || '');
+            if (!id || seen.has(id)) return;
+            seen.add(id);
+
+            const data = item.data || {};
+            const content = stripHtml(data.content || data.title || '');
+            if (!content || data.lock || /VIP专享|解锁直达|升级/.test(content)) return;
+
+            rows.push({
+                id,
+                time: item.time || '',
+                data: { content },
+                url: data.link || 'https://www.jin10.com/flash',
+            });
+        });
+
+        // 用"过滤后最后一条"作为下一页 cursor,而不是原始 json.data 的最后一条
+        // (原始数据可能含 VIP/锁文等被过滤项,翻页基准要稳定)
+        const sliced = rows.slice(0, limit);
+        const last = sliced[sliced.length - 1];
+        if (last && (last.time || last.id)) {
+            nextCursor = JSON.stringify({ maxTime: last.time, lastId: last.id });
+        } else {
+            exhausted = true;
+        }
+        if (json.data.length === 0) exhausted = true;
+
+        if (!rows.length && !cursor) throw new Error('金十公开快讯为空');
+
+        return ok(res, {
+            data: sliced,
+            nextCursor: exhausted ? null : nextCursor,
+            hasMore: !exhausted && rows.length > 0,
+        });
     } catch (error) {
         return fail(res, 502, '真实金十快讯接口不可用', { error: error.message });
     }

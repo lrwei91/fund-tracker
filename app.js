@@ -38,6 +38,12 @@ const MULTIDAY_FLOW_CACHE_KEY = 'fund_tracker_multiday_flow_cache';
 const DRAGON_TIGER_CACHE_KEY = 'fund_tracker_dragon_tiger_cache';
 const LOCKUP_CACHE_KEY = 'fund_tracker_lockup_cache';
 
+// ---------- Cache Keys ----------
+const WATCH_QUOTE_CACHE_KEY = 'fund_tracker_watch_quote_cache';
+const WATCH_QUOTE_UPDATE_TIME_KEY = 'fund_tracker_watch_quote_update_time';
+const ALERT_SETTINGS_KEY = 'fund_tracker_alert_settings';
+const WATCH_ALERT_STATE_KEY = 'fund_tracker_watch_alert_state';
+
 // 实时数据缓存
 let liveIndexData = null;
 let liveCapitalData = null;
@@ -45,6 +51,49 @@ let liveSectorData = null;
 let watchQuoteCache = {};
 let watchQuoteUpdateTime = '';
 let hasInitialDataLoaded = false;
+
+// 涨跌幅告警状态
+let alertEnabled = true;
+let alertThreshold = 2;            // 百分比
+let watchAlertState = {};          // { [code]: { openDate, openPrice, addedPrice, pendingAdd, lastTriggerPrice, lastTriggerTime } }
+const ALERT_TOAST_MAX = 5;         // 同时显示的最大弹窗数
+const ALERT_TOAST_TTL_MS = 20000;  // 单条弹窗自动消失时间
+
+// 启动时从 localStorage 恢复自选股行情(避免非交易时段刷新后变成"待刷新")
+(function restoreWatchQuoteState() {
+    try {
+        var rawCache = localStorage.getItem(WATCH_QUOTE_CACHE_KEY);
+        if (rawCache) watchQuoteCache = JSON.parse(rawCache) || {};
+    } catch (e) { watchQuoteCache = {}; }
+    try {
+        var rawTime = localStorage.getItem(WATCH_QUOTE_UPDATE_TIME_KEY);
+        if (rawTime) watchQuoteUpdateTime = rawTime;
+    } catch (e) { /* ignore */ }
+})();
+
+// 启动时从 localStorage 恢复告警设置 + 自选股 alert 状态
+// 引入 schema 版本号:openPrice 字段含义从"首次见到价"改成"真实开盘价",
+// 老 state 会导致涨跌幅比较基准错位,首次加载新版本时清空。
+const WATCH_ALERT_SCHEMA_VERSION = 2;
+(function restoreAlertState() {
+    try {
+        var saved = JSON.parse(localStorage.getItem(ALERT_SETTINGS_KEY) || '{}') || {};
+        if (typeof saved.enabled === 'boolean') alertEnabled = saved.enabled;
+        if (typeof saved.threshold === 'number' && saved.threshold > 0 && saved.threshold <= 50) {
+            alertThreshold = saved.threshold;
+        }
+    } catch (e) { /* ignore */ }
+    try {
+        var rawState = JSON.parse(localStorage.getItem(WATCH_ALERT_STATE_KEY) || '{}') || {};
+        if (rawState && rawState.__v !== WATCH_ALERT_SCHEMA_VERSION) {
+            // 老 schema 或无版本号:丢弃,让新逻辑用今日真实开盘价重建基准
+            watchAlertState = {};
+            try { localStorage.removeItem(WATCH_ALERT_STATE_KEY); } catch (e) {}
+        } else {
+            watchAlertState = rawState;
+        }
+    } catch (e) { watchAlertState = {}; }
+})();
 
 // ---------- Tab Routing ----------
 function initTabs() {
@@ -109,12 +158,18 @@ document.addEventListener('DOMContentLoaded', function () {
     initSectorTabs();
     initWatchlistTabs();
     initNewsSourceTabs();
+    initNewsScroll();
     initSettings();
     syncSettingsControls();
     initDataPanel();
     bindEvents();
     initAutoRefresh();
-    loadAllData();
+    // 页面初始化:按市场阶段决定是否发请求
+    //  - 交易时段:正常拉取所有数据
+    //  - 收盘后:只拉日级数据,实时数据从缓存渲染
+    //  - 其他非交易时段:完全不 fetch,只从缓存渲染
+    loadInitialDataByMarketPhase();
+    hasInitialDataLoaded = true;
 });
 
 // ---------- Collapsible Sections ----------
@@ -193,6 +248,12 @@ function activateSectorTab(target) {
 
 // ---------- News Source Tabs (金十/东财) ----------
 var currentNewsSource = localStorage.getItem(NEWS_SOURCE_KEY) || 'jin10';
+// 金十支持翻页(每页 20);东财 fastNewsList 不支持分页参数,只能取最新 30 条
+var NEWS_PAGE_SIZE = { jin10: 20, eastmoney: 30 };
+var newsState = {
+    jin10: { items: [], cursor: null, hasMore: true, isLoading: false, error: false },
+    eastmoney: { items: [], cursor: null, hasMore: true, isLoading: false, error: false },
+};
 
 function initNewsSourceTabs() {
     if (!['jin10', 'eastmoney'].includes(currentNewsSource)) currentNewsSource = 'jin10';
@@ -207,9 +268,46 @@ function initNewsSourceTabs() {
             tab.classList.add('active');
             currentNewsSource = tab.getAttribute('data-source');
             try { localStorage.setItem(NEWS_SOURCE_KEY, currentNewsSource); } catch (e) {}
+            // 切换源:重置状态、清空列表、立刻展示"加载中..."
+            resetNewsState(currentNewsSource);
+            renderNewsList();
             loadNewsData();
         });
     });
+}
+
+function resetNewsState(source) {
+    newsState[source] = { items: [], cursor: null, hasMore: true, isLoading: false, error: false };
+}
+
+// 滚动到底部时自动加载更多(用 sentinel + 距离阈值,避免频繁触发)
+var newsScrollHandler = null;
+function initNewsScroll() {
+    if (newsScrollHandler) return;
+    var ticking = false;
+    newsScrollHandler = function () {
+        if (ticking) return;
+        ticking = true;
+        requestAnimationFrame(function () {
+            ticking = false;
+            maybeLoadMoreNews();
+        });
+    };
+    window.addEventListener('scroll', newsScrollHandler, { passive: true });
+    window.addEventListener('resize', newsScrollHandler, { passive: true });
+}
+
+function maybeLoadMoreNews() {
+    if (currentTab !== 'news') return;
+    var state = newsState[currentNewsSource];
+    if (!state || state.isLoading || !state.hasMore) return;
+    // 距底部 400px 内即触发
+    var threshold = 400;
+    var scrolled = window.scrollY + window.innerHeight;
+    var total = document.documentElement.scrollHeight;
+    if (scrolled >= total - threshold) {
+        loadNewsData();
+    }
 }
 
 // ---------- Settings ----------
@@ -224,6 +322,8 @@ function getSettingsControls() {
         mainInterval: document.getElementById('refresh-interval-main'),
         signalInterval: document.getElementById('refresh-interval-signal'),
         newsInterval: document.getElementById('refresh-interval-news'),
+        alertEnabled: document.getElementById('alert-enabled-toggle'),
+        alertThreshold: document.getElementById('alert-threshold-input'),
     };
 }
 
@@ -260,6 +360,8 @@ function syncSettingsControls() {
     if (controls.mainInterval) controls.mainInterval.value = String(refreshSecondsMain);
     if (controls.signalInterval) controls.signalInterval.value = String(refreshSecondsSignal);
     if (controls.newsInterval) controls.newsInterval.value = String(refreshSecondsNews);
+    if (controls.alertEnabled) controls.alertEnabled.checked = alertEnabled;
+    if (controls.alertThreshold) controls.alertThreshold.value = String(alertThreshold);
 }
 
 function initSettings() {
@@ -338,6 +440,25 @@ function bindEvents() {
         if (isAutoRefresh) { startNewsAutoRefresh(); }
     });
 
+    document.getElementById('alert-enabled-toggle').addEventListener('change', function (e) {
+        alertEnabled = !!e.target.checked;
+        saveAlertSettings();
+    });
+
+    var thresholdInput = document.getElementById('alert-threshold-input');
+    if (thresholdInput) {
+        var commitThreshold = function () {
+            var v = parseFloat(thresholdInput.value);
+            if (!isFinite(v) || v <= 0) v = 2;
+            if (v > 50) v = 50;
+            alertThreshold = v;
+            thresholdInput.value = String(v);
+            saveAlertSettings();
+        };
+        thresholdInput.addEventListener('change', commitThreshold);
+        thresholdInput.addEventListener('blur', commitThreshold);
+    }
+
     document.getElementById('add-stock-btn').addEventListener('click', addStockToWatchlist);
     document.getElementById('add-watch-tab-btn').addEventListener('click', addWatchTab);
     document.getElementById('stock-code-input').addEventListener('keydown', function (e) {
@@ -388,16 +509,28 @@ function writeTimedCache(key, data) {
     writeJson(key, { data: data, updatedAt: Date.now() });
 }
 
-function setLastUpdated(label) {
+function setLastUpdated(label, time) {
     var el = document.getElementById('last-updated');
     if (!el) return;
-    var time = new Date().toLocaleTimeString('zh-CN', {
+    var display = time || new Date().toLocaleTimeString('zh-CN', {
         timeZone: 'Asia/Shanghai',
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
     });
-    el.textContent = (label || '已更新') + ' · ' + time;
+    el.textContent = (label || '已更新') + ' · ' + display;
+}
+
+function formatShanghaiTime(timestamp) {
+    if (!timestamp) return '';
+    var date = new Date(timestamp);
+    if (isNaN(date.getTime())) return '';
+    return date.toLocaleTimeString('zh-CN', {
+        timeZone: 'Asia/Shanghai',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+    });
 }
 
 function getShanghaiNow() {
@@ -464,23 +597,97 @@ function loadAfterCloseDailyData() {
     loadLockupData();
 }
 
-function refreshDataByMarketPhase() {
+// 页面初始化时按市场阶段分支:
+//  - 交易时段:正常拉取所有数据
+//  - 收盘后窗口:只拉日级数据(龙虎/解禁/多日资金),实时数据从缓存渲染
+//  - 其他非交易时段(盘前/午休/深夜/周末):完全不发出 fetch,仅从缓存渲染
+function loadInitialDataByMarketPhase() {
     if (isIntradayRefreshWindow()) {
-        loadIntradayData();
-        loadIntradaySignalData();
+        loadAllData();
         return;
     }
 
     if (isAfterCloseDailyWindow()) {
         loadAfterCloseDailyData();
-        setLastUpdated('收盘后仅更新日级数据');
+        loadMultiDayFlowData();
+        renderRealtimeFromCache();
         return;
     }
 
-    if (!hasInitialDataLoaded) {
-        loadAllData();
-    } else {
-        setLastUpdated('非交易时段暂停行情刷新');
+    // 非交易时段(盘前/午休/深夜/周末)
+    renderRealtimeFromCache();
+}
+
+// 从 localStorage 缓存渲染大盘/资金/板块/自选股,并显示"最后一次实际更新"的时间
+// 不会触发任何 fetch。
+function renderRealtimeFromCache() {
+    var anyRendered = false;
+
+    var idxCached = readJson(SHORT_CACHE_KEYS.index, null);
+    if (idxCached && idxCached.data) {
+        liveIndexData = idxCached.data;
+        Object.keys(idxCached.data).forEach(function (id) { updateIndexUI(id, idxCached.data[id]); });
+        setLastUpdated('行情已更新', formatShanghaiTime(idxCached.updatedAt));
+        anyRendered = true;
+    }
+
+    var capCached = readJson(SHORT_CACHE_KEYS.capital, null);
+    if (capCached && capCached.data) {
+        liveCapitalData = capCached.data;
+        renderCapitalUI(capCached.data);
+        anyRendered = true;
+    }
+
+    var secCached = readJson(SHORT_CACHE_KEYS.sector, null);
+    if (secCached && secCached.data) {
+        liveSectorData = secCached.data;
+        renderSectorUI(secCached.data);
+        anyRendered = true;
+    }
+
+    // 自选股:watchQuoteCache 已在启动时从 localStorage 恢复
+    var codes = getAllWatchCodes();
+    if (codes.length > 0) {
+        renderWatchlist();
+        anyRendered = true;
+    }
+
+    if (!anyRendered) {
+        setLastUpdated('非交易时段 · 暂无缓存');
+    }
+}
+
+function renderCapitalUI(cap) {
+    var mf = document.getElementById('main-fund-value');
+    var nf = document.getElementById('north-fund-value');
+    if (mf) {
+        mf.textContent = cap.mainFund.value;
+        mf.className = 'capital-value';
+        if (typeof cap.mainFund.isPositive === 'boolean') {
+            mf.classList.add(cap.mainFund.isPositive ? 'positive' : 'negative');
+        }
+    }
+    if (nf) {
+        nf.textContent = cap.northFund.value;
+        nf.className = 'capital-value';
+        if (typeof cap.northFund.isPositive === 'boolean') {
+            nf.classList.add(cap.northFund.isPositive ? 'positive' : 'negative');
+        }
+    }
+}
+
+function renderSectorUI(sectors) {
+    var inflow = document.getElementById('inflow-sectors');
+    var outflow = document.getElementById('outflow-sectors');
+    if (inflow) {
+        inflow.innerHTML = (sectors.inflow || []).slice(0, 5).map(function (s) {
+            return '<li><span class="sector-name">' + escapeHtml(s.name) + '</span><span class="sector-amount positive">' + escapeHtml(s.value) + '</span></li>';
+        }).join('') || '<li class="list-empty">暂无可靠真实流入数据</li>';
+    }
+    if (outflow) {
+        outflow.innerHTML = (sectors.outflow || []).slice(0, 5).map(function (s) {
+            return '<li><span class="sector-name">' + escapeHtml(s.name) + '</span><span class="sector-amount negative">' + escapeHtml(s.value) + '</span></li>';
+        }).join('') || '<li class="list-empty">暂无可靠真实流出数据</li>';
     }
 }
 
@@ -592,6 +799,10 @@ async function loadIndexData() {
     if (cached) {
         liveIndexData = cached;
         Object.keys(cached).forEach(function (id) { updateIndexUI(id, cached[id]); });
+        var meta = readJson(SHORT_CACHE_KEYS.index, null);
+        if (meta && meta.updatedAt) {
+            setLastUpdated('行情已更新', formatShanghaiTime(meta.updatedAt));
+        }
         return;
     }
 
@@ -635,24 +846,8 @@ async function loadCapitalData() {
         liveCapitalData = newData;
     }
 
-    var cap = liveCapitalData;
-    if (!cap) return;
-    var mf = document.getElementById('main-fund-value');
-    var nf = document.getElementById('north-fund-value');
-    if (mf) {
-        mf.textContent = cap.mainFund.value;
-        mf.className = 'capital-value';
-        if (typeof cap.mainFund.isPositive === 'boolean') {
-            mf.classList.add(cap.mainFund.isPositive ? 'positive' : 'negative');
-        }
-    }
-    if (nf) {
-        nf.textContent = cap.northFund.value;
-        nf.className = 'capital-value';
-        if (typeof cap.northFund.isPositive === 'boolean') {
-            nf.classList.add(cap.northFund.isPositive ? 'positive' : 'negative');
-        }
-    }
+    if (!liveCapitalData) return;
+    renderCapitalUI(liveCapitalData);
 }
 
 // ---------- 板块排行 ----------
@@ -681,20 +876,8 @@ async function loadSectorData() {
         liveSectorData = newData;
     }
 
-    var sectors = liveSectorData;
-    if (!sectors) return;
-    var inflow = document.getElementById('inflow-sectors');
-    var outflow = document.getElementById('outflow-sectors');
-    if (inflow) {
-        inflow.innerHTML = (sectors.inflow || []).slice(0, 5).map(function (s) {
-            return '<li><span class="sector-name">' + escapeHtml(s.name) + '</span><span class="sector-amount positive">' + escapeHtml(s.value) + '</span></li>';
-        }).join('') || '<li class="list-empty">暂无可靠真实流入数据</li>';
-    }
-    if (outflow) {
-        outflow.innerHTML = (sectors.outflow || []).slice(0, 5).map(function (s) {
-            return '<li><span class="sector-name">' + escapeHtml(s.name) + '</span><span class="sector-amount negative">' + escapeHtml(s.value) + '</span></li>';
-        }).join('') || '<li class="list-empty">暂无可靠真实流出数据</li>';
-    }
+    if (!liveSectorData) return;
+    renderSectorUI(liveSectorData);
 }
 
 // ---------- 多日资金流向 ----------
@@ -934,6 +1117,13 @@ const WATCH_TABS_KEY = 'fund_tracker_watchlist_tabs';
 const ACTIVE_WATCH_TAB_KEY = 'fund_tracker_active_watch_tab';
 const PREV_KEY = 'fund_tracker_prev_pct';
 
+// 固定 tab:id 固定、位置固定在所有自建 tab 之前、不可删除
+const FIXED_WATCH_TAB_IDS = ['default', 'candidate'];
+const FIXED_WATCH_TAB_NAMES = { default: '持仓股', candidate: '候选股' };
+function isFixedWatchTab(tabId) {
+    return FIXED_WATCH_TAB_IDS.indexOf(tabId) !== -1;
+}
+
 function getPrevChangePct() {
     try { return JSON.parse(localStorage.getItem(PREV_KEY)) || {}; } catch (e) { return {}; }
 }
@@ -948,10 +1138,10 @@ function persistCurrentChangePct() {
     savePrevChangePct(map);
 }
 function trendArrow(current, prev) {
-    if (prev === undefined || prev === null) return '→';
-    if (current > prev) return '↑';
-    if (current < prev) return '↓';
-    return '→';
+    if (prev === undefined || prev === null) return '─';
+    if (current > prev) return '▲';
+    if (current < prev) return '▼';
+    return '─';
 }
 
 function sanitizeCodes(codes) {
@@ -969,7 +1159,10 @@ function getLegacyWatchlist() {
 }
 
 function defaultWatchTabs() {
-    return [{ id: 'default', name: '持仓股', codes: getLegacyWatchlist() }];
+    return [
+        { id: 'default', name: '持仓股', codes: getLegacyWatchlist() },
+        { id: 'candidate', name: '候选股', codes: [] },
+    ];
 }
 
 function normalizeWatchTabName(name, index) {
@@ -982,7 +1175,26 @@ function getWatchTabs() {
         var data = localStorage.getItem(WATCH_TABS_KEY);
         var parsed = data ? JSON.parse(data) : null;
         if (!Array.isArray(parsed) || parsed.length === 0) return defaultWatchTabs();
-        return parsed.map(function (tab, index) {
+
+        // 升级:补齐缺失的 fixed tabs,保证 fixed tabs 排在最前
+        var fixedBuckets = FIXED_WATCH_TAB_IDS.map(function () { return null; });
+        var userTabs = [];
+        parsed.forEach(function (tab) {
+            var idx = FIXED_WATCH_TAB_IDS.indexOf(tab.id);
+            if (idx !== -1) fixedBuckets[idx] = tab;
+            else userTabs.push(tab);
+        });
+        var needsUpgrade = false;
+        FIXED_WATCH_TAB_IDS.forEach(function (id, idx) {
+            if (!fixedBuckets[idx]) {
+                fixedBuckets[idx] = { id: id, name: FIXED_WATCH_TAB_NAMES[id], codes: [] };
+                needsUpgrade = true;
+            }
+        });
+        var merged = fixedBuckets.concat(userTabs);
+        if (needsUpgrade) saveWatchTabs(merged);
+
+        return merged.map(function (tab, index) {
             return {
                 id: tab.id || 'tab-' + index,
                 name: normalizeWatchTabName(tab.name, index),
@@ -1065,6 +1277,10 @@ function importWatchlistData(e) {
             localStorage.setItem(ACTIVE_WATCH_TAB_KEY, activeWatchTabId);
             watchQuoteCache = {};
             watchQuoteUpdateTime = '';
+            watchAlertState = {};
+            persistWatchQuoteCache();
+            persistWatchQuoteUpdateTime('');
+            saveWatchAlertState();
             renderWatchTabs();
             renderWatchlist();
             loadWatchlistData();
@@ -1117,7 +1333,7 @@ function renderWatchTabs() {
     if (!tabs.some(function (tab) { return tab.id === activeWatchTabId; })) activeWatchTabId = tabs[0].id;
     container.innerHTML = tabs.map(function (tab) {
         var isActive = tab.id === activeWatchTabId;
-        var removable = tabs.length > 1;
+        var removable = !isFixedWatchTab(tab.id);
         return '<button class="watchlist-tab' + (isActive ? ' active' : '') + '" data-watch-tab="' + escapeHtml(tab.id) + '" type="button">' +
             '<span>' + escapeHtml(tab.name) + '</span>' +
             (removable ? '<span class="watchlist-tab-remove" data-remove-watch-tab="' + escapeHtml(tab.id) + '" aria-label="删除分组">×</span>' : '') +
@@ -1214,9 +1430,11 @@ function addWatchTab() {
 }
 
 function removeWatchTab(tabId) {
+    if (isFixedWatchTab(tabId)) return;  // 持仓股/候选股不可删(UI 上没入口,这里兜底)
     var tabs = getWatchTabs();
-    if (tabs.length <= 1) {
-        showWatchStatus('至少保留一个分组', 'error');
+    var userTabsCount = tabs.filter(function (t) { return !isFixedWatchTab(t.id); }).length;
+    if (userTabsCount <= 1) {
+        showWatchStatus('至少保留一个自建分组', 'error');
         return;
     }
     var target = tabs.find(function (tab) { return tab.id === tabId; });
@@ -1259,6 +1477,18 @@ async function addStockToWatchlist() {
         list.push(code);
         saveActiveWatchlist(list);
         input.value = '';
+        // 同步写一条 pending alert state,首次拿到行情后由 checkAlerts 写入 addedPrice
+        // 这样关页面再打开也能保留"盘中加的用添加价"语义
+        watchAlertState[code] = {
+            openDate: getShanghaiDateKey(),
+            openPrice: null,      // 盘中新加,不用开盘价
+            addedPrice: null,     // 等首次行情
+            addedAt: null,
+            pendingAdd: true,     // checkAlerts 看到这个标志会用 priceValue 填 addedPrice 并清掉
+            lastTriggerPrice: null,
+            lastTriggerTime: null,
+        };
+        saveWatchAlertState();
         showWatchStatus((match.name || code) + ' 已添加');
         renderWatchlist();
         loadSingleWatchQuote(code);
@@ -1273,6 +1503,14 @@ async function addStockToWatchlist() {
 function removeStockFromWatchlist(code) {
     var list = getWatchlist().filter(function (c) { return c !== code; });
     saveActiveWatchlist(list);
+    if (watchQuoteCache[code]) {
+        delete watchQuoteCache[code];
+        persistWatchQuoteCache();
+    }
+    if (watchAlertState[code]) {
+        delete watchAlertState[code];
+        saveWatchAlertState();
+    }
     renderWatchlist();
     showWatchStatus('已移除');
 }
@@ -1325,6 +1563,14 @@ function renderWatchlist() {
     if (updateTimeEl) updateTimeEl.textContent = watchQuoteUpdateTime || '';
 }
 
+function persistWatchQuoteCache() {
+    try { localStorage.setItem(WATCH_QUOTE_CACHE_KEY, JSON.stringify(watchQuoteCache)); } catch (e) {}
+}
+
+function persistWatchQuoteUpdateTime(value) {
+    try { localStorage.setItem(WATCH_QUOTE_UPDATE_TIME_KEY, value || ''); } catch (e) {}
+}
+
 async function loadWatchlistData() {
     var updateTimeEl = document.getElementById('watchlist-update-time');
     var codes = getAllWatchCodes();
@@ -1346,10 +1592,13 @@ async function loadWatchlistData() {
 
         if (result.time) {
             watchQuoteUpdateTime = result.time;
+            persistWatchQuoteUpdateTime(result.time);
             if (updateTimeEl) updateTimeEl.textContent = result.time;
         }
+        persistWatchQuoteCache();
         renderWatchlist();
         persistCurrentChangePct();
+        checkAlerts(result.data);
     } catch (e) {
         console.error('自选股失败:', e);
         showWatchStatus('自选股行情加载失败', 'error');
@@ -1369,10 +1618,14 @@ async function loadSingleWatchQuote(code) {
         if (data && data.price !== '0.00') watchQuoteCache[code] = data;
         if (result.time) {
             watchQuoteUpdateTime = result.time;
+            persistWatchQuoteUpdateTime(result.time);
             if (updateTimeEl) updateTimeEl.textContent = result.time;
         }
+        persistWatchQuoteCache();
         renderWatchlist();
         persistCurrentChangePct();
+        // pendingAdd 的 state 由 checkAlerts 内部统一处理(写入 addedPrice)
+        checkAlerts(result.data);
     } catch (e) {
         console.error('新增股票行情获取失败:', e);
         showWatchStatus('已添加，行情稍后自动刷新', 'error');
@@ -1403,6 +1656,214 @@ function bindWatchRemove() {
     });
 }
 
+// ---------- 涨跌幅告警 ----------
+function saveAlertSettings() {
+    try {
+        localStorage.setItem(ALERT_SETTINGS_KEY, JSON.stringify({
+            enabled: alertEnabled,
+            threshold: alertThreshold,
+        }));
+    } catch (e) {}
+}
+
+function saveWatchAlertState() {
+    try {
+        var payload = Object.assign({ __v: WATCH_ALERT_SCHEMA_VERSION }, watchAlertState);
+        localStorage.setItem(WATCH_ALERT_STATE_KEY, JSON.stringify(payload));
+    } catch (e) {}
+}
+
+// 检查并触发告警。quotes 形如 { [code]: { name, priceValue, openPrice, ... } }
+// 基准价优先级:lastTriggerPrice(触发后) > addedPrice(盘中新加) > openPrice(今开)
+// 首次见到某只股票 -> 用今日开盘价;新的一天 -> 重新用开盘价;
+// pendingAdd 状态的股票(用户盘中新加),首次拿到行情时把此刻价写入 addedPrice。
+function checkAlerts(quotes) {
+    if (!alertEnabled) return;
+    if (!quotes || typeof quotes !== 'object') return;
+    var todayKey = getShanghaiDateKey();
+    var triggered = [];
+    var stateChanged = false;
+
+    // 只监控 fixed tabs(持仓股 + 候选股)里的股票;其他自建分组一律不告警
+    var watchTabs = getWatchTabs();
+    var monitoredCodeSet = {};
+    watchTabs.forEach(function (tab) {
+        if (isFixedWatchTab(tab.id)) {
+            tab.codes.forEach(function (c) { monitoredCodeSet[c] = true; });
+        }
+    });
+
+    Object.keys(quotes).forEach(function (code) {
+        if (!monitoredCodeSet[code]) return;  // 非持仓股/候选股,跳过
+
+        var d = quotes[code];
+        if (!d) return;
+        var price = typeof d.priceValue === 'number' ? d.priceValue : null;
+        if (price === null || price <= 0) return;
+
+        // 真实今开(后端优先用 data[5],fallback 到昨收反推);仍可能为 null
+        var openPrice = (typeof d.openPrice === 'number' && d.openPrice > 0) ? d.openPrice : null;
+
+        var state = watchAlertState[code];
+        if (!state) {
+            // 第一次见到这只股票:用今日开盘价作为基准,不算涨跌幅
+            watchAlertState[code] = {
+                openDate: todayKey,
+                openPrice: openPrice,
+                lastTriggerPrice: null,
+                lastTriggerTime: null,
+            };
+            stateChanged = true;
+            return;
+        }
+
+        if (state.openDate !== todayKey) {
+            // 新的一天:用今日开盘价重置基准;addedPrice 属于"添加时刻"的快照,跨日失效
+            state.openDate = todayKey;
+            state.openPrice = openPrice;
+            state.addedPrice = null;
+            state.addedAt = null;
+            state.pendingAdd = false;
+            state.lastTriggerPrice = null;
+            state.lastTriggerTime = null;
+            stateChanged = true;
+        } else if (state.pendingAdd === true) {
+            // 盘中新加:首次拿到行情,用此刻价格作 addedPrice 基准(支持关页面再开)
+            state.addedPrice = price;
+            state.addedAt = Date.now();
+            state.pendingAdd = false;
+            stateChanged = true;
+        } else if (state.openPrice == null && state.addedPrice == null && openPrice != null) {
+            // 同一天内,如果后端补回了开盘价,补上(例如刚开盘接口还没返回)
+            state.openPrice = openPrice;
+            stateChanged = true;
+        }
+
+        var base = state.lastTriggerPrice || state.addedPrice || state.openPrice;
+        if (!base || base <= 0) return;
+        var changePct = (price - base) / base * 100;
+        if (Math.abs(changePct) >= alertThreshold) {
+            var baseLabel = state.lastTriggerPrice ? '触发价'
+                          : (state.addedPrice ? '添加价' : '开盘价');
+            state.lastTriggerPrice = price;
+            state.lastTriggerTime = new Date().toISOString();
+            stateChanged = true;
+            triggered.push({
+                code: code,
+                name: d.name || code,
+                price: price,
+                changePct: changePct,
+                basePrice: base,
+                baseLabel: baseLabel,
+                time: state.lastTriggerTime,
+            });
+        }
+    });
+
+    if (stateChanged) saveWatchAlertState();
+    triggered.forEach(pushAlertToast);
+}
+
+function pushAlertToast(alert) {
+    var container = document.getElementById('alert-toast-container');
+    if (!container) return;
+    if (!alert || typeof alert.price !== 'number') return;
+
+    // 限制最大条数,超过则移除最早
+    while (container.children.length >= ALERT_TOAST_MAX) {
+        var first = container.firstChild;
+        if (!first) break;
+        removeAlertToast(first, true);
+    }
+
+    var directionLabel = alert.changePct >= 0 ? '▲ 涨' : '▼ 跌';
+    var dirClass = alert.changePct >= 0 ? 'alert-up' : 'alert-down';
+    var pctClass = alert.changePct >= 0 ? 'positive' : 'negative';
+    var pctText = (alert.changePct >= 0 ? '+' : '') + alert.changePct.toFixed(2) + '%';
+    var timeText = new Date(alert.time).toLocaleTimeString('zh-CN', {
+        timeZone: 'Asia/Shanghai',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+    });
+
+    var toast = document.createElement('div');
+    toast.className = 'alert-toast ' + dirClass;
+    toast.setAttribute('data-code', alert.code);
+
+    var main = document.createElement('div');
+    main.className = 'alert-toast-main';
+
+    var title = document.createElement('div');
+    title.className = 'alert-toast-title';
+    var dirSpan = document.createElement('span');
+    dirSpan.className = 'alert-toast-direction';
+    dirSpan.textContent = directionLabel;
+    var nameSpan = document.createElement('span');
+    nameSpan.className = 'alert-toast-name';
+    nameSpan.textContent = alert.name;
+    var codeSpan = document.createElement('span');
+    codeSpan.className = 'alert-toast-code';
+    codeSpan.textContent = alert.code;
+    title.appendChild(dirSpan);
+    title.appendChild(nameSpan);
+    title.appendChild(codeSpan);
+
+    var detail = document.createElement('div');
+    detail.className = 'alert-toast-detail';
+    var priceSpan = document.createElement('span');
+    priceSpan.className = 'alert-toast-price';
+    priceSpan.textContent = alert.price.toFixed(2);
+    var pctSpan = document.createElement('span');
+    pctSpan.className = 'alert-toast-pct ' + pctClass;
+    pctSpan.textContent = pctText;
+    var baseSpan = document.createElement('span');
+    baseSpan.className = 'alert-toast-base';
+    var baseLabel = alert.baseLabel || (alert.baseIsTrigger ? '触发价' : '基准');
+    baseSpan.textContent = baseLabel + ' ' + alert.basePrice.toFixed(2);
+    detail.appendChild(priceSpan);
+    detail.appendChild(pctSpan);
+    detail.appendChild(baseSpan);
+
+    var timeDiv = document.createElement('div');
+    timeDiv.className = 'alert-toast-time';
+    timeDiv.textContent = timeText;
+
+    main.appendChild(title);
+    main.appendChild(detail);
+    main.appendChild(timeDiv);
+
+    var closeBtn = document.createElement('button');
+    closeBtn.className = 'alert-toast-close';
+    closeBtn.setAttribute('aria-label', '关闭');
+    closeBtn.textContent = '✕';
+    closeBtn.addEventListener('click', function () { removeAlertToast(toast); });
+
+    toast.appendChild(main);
+    toast.appendChild(closeBtn);
+
+    var timerId = setTimeout(function () { removeAlertToast(toast); }, ALERT_TOAST_TTL_MS);
+    toast.__alertTimer = timerId;
+
+    container.appendChild(toast);
+}
+
+function removeAlertToast(toast, immediate) {
+    if (!toast || !toast.parentNode) return;
+    if (toast.__alertTimer) {
+        clearTimeout(toast.__alertTimer);
+        toast.__alertTimer = null;
+    }
+    if (immediate) {
+        if (toast.parentNode) toast.parentNode.removeChild(toast);
+        return;
+    }
+    toast.classList.add('removing');
+    setTimeout(function () {
+        if (toast.parentNode) toast.parentNode.removeChild(toast);
+    }, 200);
+}
+
 // ---------- 财经新闻（金十源）----------
 function stripHtmlTags(html) {
     var tmp = document.createElement('div');
@@ -1426,96 +1887,141 @@ function formatJin10Time(timeStr) {
 async function loadNewsData() {
     var container = document.getElementById('news-list');
     if (!container) return;
+    var state = newsState[currentNewsSource];
+    if (!state || state.isLoading) return;
+    if (state.items.length > 0 && !state.hasMore) return; // 已加载到底
 
-    if (currentNewsSource === 'eastmoney') {
-        await loadEastmoneyNews();
-    } else {
-        await loadJin10News();
+    state.isLoading = true;
+    renderNewsList();
+    try {
+        if (currentNewsSource === 'eastmoney') {
+            await loadEastmoneyNews();
+        } else {
+            await loadJin10News();
+        }
+    } finally {
+        state.isLoading = false;
+        renderNewsList();
     }
 }
 
 async function loadJin10News() {
-    var container = document.getElementById('news-list');
-    if (!container) return;
+    var state = newsState.jin10;
+    var query = { limit: String(NEWS_PAGE_SIZE.jin10) };
+    if (state.cursor) query.cursor = state.cursor;
 
     try {
-        var json = readTimedCache(SHORT_CACHE_KEYS.newsJin10, SHORT_CACHE_TTL.news);
-        if (!json) {
-            var res = await fetch(apiUrl('/news'));
-            if (!res.ok) throw new Error('HTTP ' + res.status);
-            json = await res.json();
-            if (json.success) writeTimedCache(SHORT_CACHE_KEYS.newsJin10, json);
-        }
+        var res = await fetch(apiUrl('/news', query));
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        var json = await res.json();
+        if (!json.success) throw new Error(json.error || '数据异常');
 
-        if (!json.success || !json.data || !json.data.data || json.data.data.length === 0) {
-            container.innerHTML = renderEmpty('暂无金十快讯');
-            return;
+        var payload = json.data || {};
+        var rows = Array.isArray(payload.data) ? payload.data : [];
+        if (rows.length) {
+            state.items = state.items.concat(rows);
         }
-
-        var items = json.data.data.slice(0, 20);
-        var html = '';
-        items.forEach(function (item) {
-            var content = item.data && item.data.content ? stripHtmlTags(item.data.content) : '';
-            if (!content) return;
-            var time = formatJin10Time(item.time);
-            html += '<div class="news-item">';
-            html += '  <div class="news-header">';
-            html += '    <span class="news-time">' + escapeHtml(time) + '</span>';
-            html += '  </div>';
-            html += '  <div class="news-summary">' + escapeHtml(content) + '</div>';
-            html += '</div>';
-        });
-        if (html) container.innerHTML = html;
+        state.cursor = payload.nextCursor || null;
+        state.hasMore = !!payload.hasMore && !!state.cursor;
+        state.error = false;
     } catch (e) {
         console.error('金十快讯获取失败:', e);
-        var cached = readJson(SHORT_CACHE_KEYS.newsJin10, null);
-        if (cached && cached.data) {
-            writeTimedCache(SHORT_CACHE_KEYS.newsJin10, cached.data);
-            return loadJin10News();
-        }
-        container.innerHTML = renderEmpty('金十快讯加载失败');
+        state.error = true;
     }
 }
 
 async function loadEastmoneyNews() {
-    var container = document.getElementById('news-list');
-    if (!container) return;
+    var state = newsState.eastmoney;
+    var query = { limit: String(NEWS_PAGE_SIZE.eastmoney) };
+    if (state.cursor) query.cursor = state.cursor;
 
     try {
-        var json = readTimedCache(SHORT_CACHE_KEYS.newsEastmoney, SHORT_CACHE_TTL.news);
-        if (!json) {
-            var res = await fetch(apiUrl('/global-news'));
-            if (!res.ok) throw new Error('HTTP ' + res.status);
-            json = await res.json();
-            if (json.success) writeTimedCache(SHORT_CACHE_KEYS.newsEastmoney, json);
-        }
+        var res = await fetch(apiUrl('/global-news', query));
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        var json = await res.json();
+        if (!json.success) throw new Error(json.error || '数据异常');
 
-        if (!json.success || !json.data || json.data.length === 0) {
-            container.innerHTML = renderEmpty('暂无东财资讯');
-            return;
+        var payload = json.data || {};
+        var rows = Array.isArray(payload.data) ? payload.data : [];
+        if (rows.length) {
+            state.items = state.items.concat(rows);
         }
-
-        var items = json.data.slice(0, 20);
-        var html = '';
-        items.forEach(function (item) {
-            var title = item.title || '';
-            var summary = item.summary || '';
-            var time = item.time || '';
-            html += '<div class="news-item">';
-            html += '  <div class="news-header">';
-            html += '    <span class="news-time">' + escapeHtml(time) + '</span>';
-            html += '  </div>';
-            if (title) html += '  <div class="news-title">' + escapeHtml(title) + '</div>';
-            if (summary) html += '  <div class="news-summary">' + escapeHtml(summary) + '</div>';
-            html += '</div>';
-        });
-        if (html) container.innerHTML = html;
+        state.cursor = payload.nextCursor || null;
+        // 东财 fastNewsList 不支持分页,服务端 hasMore 始终会是 false,这里保留双保险
+        state.hasMore = !!payload.hasMore && !!state.cursor;
+        state.error = false;
     } catch (e) {
-        var cached = readJson(SHORT_CACHE_KEYS.newsEastmoney, null);
-        if (cached && cached.data) {
-            writeTimedCache(SHORT_CACHE_KEYS.newsEastmoney, cached.data);
-            return loadEastmoneyNews();
-        }
-        container.innerHTML = renderEmpty('东财资讯加载失败');
+        console.error('东财资讯获取失败:', e);
+        state.error = true;
     }
+}
+
+// 把当前 source 的 items 渲染到 DOM;不重新拉数据
+function renderNewsList() {
+    var container = document.getElementById('news-list');
+    if (!container) return;
+    var state = newsState[currentNewsSource];
+    if (!state) return;
+
+    // 首屏加载:isLoading 且 items.length === 0,显示"加载中..."
+    if (state.isLoading && state.items.length === 0) {
+        container.innerHTML = '<div class="news-status news-loading">加载中...</div>';
+        return;
+    }
+
+    // 加载出错且无内容
+    if (state.error && state.items.length === 0) {
+        container.innerHTML = '<div class="news-status news-error">' +
+            escapeHtml(currentNewsSource === 'eastmoney' ? '东财资讯加载失败' : '金十快讯加载失败') +
+            '</div>';
+        return;
+    }
+
+    // 完全空
+    if (state.items.length === 0) {
+        container.innerHTML = '<div class="news-status news-empty">' +
+            escapeHtml(currentNewsSource === 'eastmoney' ? '暂无东财资讯' : '暂无金十快讯') +
+            '</div>';
+        return;
+    }
+
+    // 正常:渲染瀑布流 + 底部 status
+    var html = '';
+    state.items.forEach(function (item) { html += renderNewsItem(item); });
+
+    // 底部状态行
+    if (state.isLoading) {
+        html += '<div class="news-status news-loading">加载中...</div>';
+    } else if (state.hasMore) {
+        html += '<div class="news-status news-loadmore" id="news-loadmore-sentinel">上拉加载更多</div>';
+    } else {
+        html += '<div class="news-status news-loadend">已经到底了</div>';
+    }
+    container.innerHTML = html;
+}
+
+function renderNewsItem(item) {
+    if (currentNewsSource === 'eastmoney') {
+        var title = item.title || '';
+        var summary = item.summary || '';
+        var time = item.time || '';
+        var html = '<div class="news-item">';
+        html += '  <div class="news-header">';
+        html += '    <span class="news-time">' + escapeHtml(time) + '</span>';
+        html += '  </div>';
+        if (title) html += '  <div class="news-title">' + escapeHtml(title) + '</div>';
+        if (summary) html += '  <div class="news-summary">' + escapeHtml(summary) + '</div>';
+        html += '</div>';
+        return html;
+    }
+    // jin10
+    var content = item.data && item.data.content ? stripHtmlTags(item.data.content) : '';
+    if (!content) return '';
+    var jt = formatJin10Time(item.time);
+    return '<div class="news-item">' +
+        '  <div class="news-header">' +
+        '    <span class="news-time">' + escapeHtml(jt) + '</span>' +
+        '  </div>' +
+        '  <div class="news-summary">' + escapeHtml(content) + '</div>' +
+        '</div>';
 }
