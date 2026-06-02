@@ -923,6 +923,14 @@ function getPrevChangePct() {
 }
 function savePrevChangePct(map) {
     try { localStorage.setItem(PREV_KEY, JSON.stringify(map)); } catch (e) {} }
+function persistCurrentChangePct() {
+    var map = {};
+    Object.keys(watchQuoteCache).forEach(function (code) {
+        var d = watchQuoteCache[code];
+        if (d && typeof d.changePercent === 'number') map[code] = d.changePercent;
+    });
+    savePrevChangePct(map);
+}
 function trendArrow(current, prev) {
     if (prev === undefined || prev === null) return '→';
     if (current > prev) return '↑';
@@ -1283,14 +1291,17 @@ function renderWatchlist() {
         return;
     }
 
+    var prevMap = getPrevChangePct();
     grid.innerHTML = codes.map(function (code) {
         var data = watchQuoteCache[code];
+        var prev = Object.prototype.hasOwnProperty.call(prevMap, code) ? prevMap[code] : undefined;
         return renderWatchItem(
             code,
             data ? data.name : code + '（待刷新）',
             data ? data.price : '--',
             data ? data.changePercent : 0,
             data ? data.volume : '--',
+            prev,
         );
     }).join('');
     bindWatchRemove();
@@ -1320,6 +1331,7 @@ async function loadWatchlistData() {
             watchQuoteUpdateTime = result.time;
             if (updateTimeEl) updateTimeEl.textContent = result.time;
         }
+        persistCurrentChangePct();
         renderWatchlist();
     } catch (e) {
         console.error('自选股失败:', e);
@@ -1341,6 +1353,7 @@ async function loadSingleWatchQuote(code) {
             watchQuoteUpdateTime = result.time;
             if (updateTimeEl) updateTimeEl.textContent = result.time;
         }
+        persistCurrentChangePct();
         renderWatchlist();
     } catch (e) {
         console.error('新增股票行情获取失败:', e);
@@ -1349,10 +1362,10 @@ async function loadSingleWatchQuote(code) {
     }
 }
 
-function renderWatchItem(code, name, price, changePercent, volume) {
+function renderWatchItem(code, name, price, changePercent, volume, prev) {
     var cls = changePercent > 0 ? 'positive' : changePercent < 0 ? 'negative' : 'neutral';
     var pt = changePercent !== 0 ? (changePercent > 0 ? '+' + changePercent + '%' : changePercent + '%') : '0.00%';
-    var arrow = trendArrow(changePercent);
+    var arrow = trendArrow(changePercent, prev);
     return '<div class="watchlist-item" data-code="' + escapeHtml(code) + '" data-pct="' + escapeHtml(changePercent) + '">' +
         '<div class="watchlist-item-main">' +
         '<div class="watchlist-stock-name">' + escapeHtml(name) + '</div>' +

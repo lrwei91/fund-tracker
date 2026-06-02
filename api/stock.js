@@ -28,7 +28,12 @@ module.exports = async function handler(req, res) {
         entries.forEach(([code, quote]) => {
             if (quote) data[code] = quote;
         });
-        const time = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const time = new Date().toLocaleTimeString('zh-CN', {
+            timeZone: 'Asia/Shanghai',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+        });
         return ok(res, data, { time });
     } catch (error) {
         return fail(res, 502, '真实股票行情接口不可用', { error: error.message });
