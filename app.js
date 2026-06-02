@@ -1331,8 +1331,8 @@ async function loadWatchlistData() {
             watchQuoteUpdateTime = result.time;
             if (updateTimeEl) updateTimeEl.textContent = result.time;
         }
-        persistCurrentChangePct();
         renderWatchlist();
+        persistCurrentChangePct();
     } catch (e) {
         console.error('自选股失败:', e);
         showWatchStatus('自选股行情加载失败', 'error');
@@ -1353,8 +1353,8 @@ async function loadSingleWatchQuote(code) {
             watchQuoteUpdateTime = result.time;
             if (updateTimeEl) updateTimeEl.textContent = result.time;
         }
-        persistCurrentChangePct();
         renderWatchlist();
+        persistCurrentChangePct();
     } catch (e) {
         console.error('新增股票行情获取失败:', e);
         showWatchStatus('已添加，行情稍后自动刷新', 'error');
