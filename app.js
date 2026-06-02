@@ -464,6 +464,7 @@ function bindEvents() {
     document.getElementById('stock-code-input').addEventListener('keydown', function (e) {
         if (e.key === 'Enter') addStockToWatchlist();
     });
+    document.getElementById('refresh-btn').addEventListener('click', manualRefreshAll);
 }
 
 function apiUrl(path, params) {
@@ -813,6 +814,20 @@ function loadAllData() {
     if (currentTab === 'news') loadNewsData();
 }
 
+// 手动刷新:无视交易时段,重新拉一遍所有数据
+// (日级数据传 force=true 绕过 isAfterCloseForDailyUpdate 门禁)
+function manualRefreshAll() {
+    loadIndexData();
+    loadWatchlistData();
+    loadCapitalData();
+    loadSectorData();
+    loadMultiDayFlowData(true);
+    loadDragonTigerData(true);
+    loadLockupData(true);
+    if (currentTab === 'news') loadNewsData();
+    setLastUpdated('手动刷新');
+}
+
 
 // ---------- 大盘指数 ----------
 // 指数中文名由 HTML 写死（首屏即正确，无需依赖接口返回）
@@ -919,7 +934,7 @@ async function loadSectorData() {
 }
 
 // ---------- 多日资金流向 ----------
-async function loadMultiDayFlowData() {
+async function loadMultiDayFlowData(force) {
     var todayKey = getShanghaiDateKey();
     var cached = readMultiDayFlowCache();
 
@@ -958,7 +973,7 @@ async function loadMultiDayFlowData() {
         return;
     }
 
-    if (!isAfterCloseForDailyUpdate()) {
+    if (!force && !isAfterCloseForDailyUpdate()) {
         if (cached && cached.data) {
             renderFlow(cached.data);
             return;
@@ -1007,7 +1022,7 @@ function writeMultiDayFlowCache(date, data) {
 }
 
 // ---------- 龙虎榜 ----------
-async function loadDragonTigerData() {
+async function loadDragonTigerData(force) {
     var container = document.getElementById('dragon-tiger-list');
     var dateEl = document.getElementById('dragon-tiger-date');
     if (!container) return;
@@ -1042,7 +1057,7 @@ async function loadDragonTigerData() {
         return;
     }
 
-    if (!isAfterCloseForDailyUpdate()) {
+    if (!force && !isAfterCloseForDailyUpdate()) {
         if (cached && cached.data) {
             renderDragonTiger(cached.data);
             return;
@@ -1071,7 +1086,7 @@ async function loadDragonTigerData() {
 }
 
 // ---------- 限售解禁 ----------
-async function loadLockupData() {
+async function loadLockupData(force) {
     var container = document.getElementById('lockup-list');
     if (!container) return;
     var todayKey = getShanghaiDateKey();
@@ -1102,7 +1117,7 @@ async function loadLockupData() {
         return;
     }
 
-    if (!isAfterCloseForDailyUpdate()) {
+    if (!force && !isAfterCloseForDailyUpdate()) {
         if (cached && cached.data) {
             renderLockup(cached.data);
             return;
@@ -1674,7 +1689,9 @@ async function loadSingleWatchQuote(code) {
 
 function renderWatchItem(code, name, price, changePercent, volume, prev) {
     var cls = changePercent > 0 ? 'positive' : changePercent < 0 ? 'negative' : 'neutral';
-    var pt = changePercent !== 0 ? (changePercent > 0 ? '+' + changePercent + '%' : changePercent + '%') : '0.00%';
+    var pt = changePercent !== 0
+        ? (changePercent > 0 ? '+' + Number(changePercent).toFixed(2) : Number(changePercent).toFixed(2)) + '%'
+        : '0.00%';
     var arrow = trendArrow(changePercent, prev);
     return '<div class="watchlist-item" data-code="' + escapeHtml(code) + '" data-pct="' + escapeHtml(changePercent) + '">' +
         '<div class="watchlist-item-main">' +
