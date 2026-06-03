@@ -1723,9 +1723,11 @@ function renderWatchlist() {
     // 切换列数：持仓股 5 列（带成本），其他 4 列
     grid.classList.toggle('with-cost', showCost);
     document.querySelector('.watchlist-header-row')?.classList.toggle('with-cost', showCost);
-    // 编辑按钮只对持仓股 tab 有意义
+    // 编辑按钮只对持仓股 tab 有意义。
+    // 用 visibility 而非 display: none，避免候选股 tab 隐藏按钮时把 card-header 行高
+    // 压缩，导致下方 .watchlist-item 整体上移产生"跳一行"的视觉跳变。
     var editBtn = document.getElementById('watchlist-edit-btn');
-    if (editBtn) editBtn.style.display = showCost ? '' : 'none';
+    if (editBtn) editBtn.style.visibility = showCost ? 'visible' : 'hidden';
     if (!showCost) closeWatchlistEditPanel();
     if (updateTimeEl) updateTimeEl.textContent = watchQuoteUpdateTime || '';
 }

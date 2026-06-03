@@ -765,17 +765,37 @@ body {
     border-radius: var(--radius-xs);
     background: transparent;
     color: var(--text-secondary);
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 700;
-    padding: 3px 12px;
+    padding: 1px 8px;
     margin-left: 6px;
     cursor: pointer;
     font-family: var(--font);
     -webkit-tap-highlight-color: transparent;
     transition: all 0.15s;
-    min-width: 48px;
     text-align: center;
-    line-height: 1.4;
+    line-height: 1.5;
+    /* 默认 visible（HTML 加载即可见），候选股 tab 由 JS 改 hidden
+       用 visibility 而非 display: none，避免按钮隐藏/显示时把 card-header 行高
+       压缩/撑高，导致下方 .watchlist-item 整体跳动 */
+}
+
+.watchlist-edit-btn:hover {
+    border-color: var(--amber);
+    color: var(--amber);
+}
+
+/* "保存"态：金色填充，视觉上像主操作按钮 */
+.watchlist-edit-btn.active {
+    background: var(--amber);
+    border-color: var(--amber);
+    color: #111827;
+}
+
+.watchlist-edit-btn.active:hover {
+    background: var(--amber);
+    color: #111827;
+    opacity: 0.9;
 }
 
 .watchlist-edit-btn:hover {
