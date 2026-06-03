@@ -577,14 +577,14 @@ body {
 /* Column headers — table-style */
 .watchlist-header-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 88px 64px 84px 26px;
+    grid-template-columns: minmax(0, 1fr) 82px 92px 26px;
     align-items: center;
     padding: 7px 14px;
     color: var(--text-tertiary);
     font-size: 10px;
     font-weight: 700;
     font-family: var(--mono);
-    gap: 12px;
+    gap: 16px;
     letter-spacing: 0.8px;
     text-transform: uppercase;
     border-bottom: 1px solid var(--border-strong);
@@ -593,9 +593,15 @@ body {
     margin: 0 -14px;
 }
 
+.watchlist-header-row.with-cost {
+    grid-template-columns: minmax(0, 1fr) 88px 64px 84px 26px;
+    gap: 12px;
+}
+
 .watchlist-header-name { }
 .watchlist-header-cost {
-    text-align: right;
+    text-align: left;
+    padding-left: 8px;
 }
 .watchlist-header-price {
     text-align: right;
@@ -627,10 +633,15 @@ body {
     border-bottom: 1px solid var(--border);
     padding: 10px 14px;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 88px 64px 84px 26px;
+    grid-template-columns: minmax(0, 1fr) 82px 92px 26px;
     align-items: center;
-    gap: 12px;
+    gap: 16px;
     border-radius: 0;
+}
+
+.watchlist-grid.with-cost .watchlist-item {
+    grid-template-columns: minmax(0, 1fr) 88px 64px 84px 26px;
+    gap: 12px;
 }
 
 .watchlist-item:nth-child(even) {
@@ -714,7 +725,7 @@ body {
 
 /* 成本价列：上下两行（成本价 + 盈亏值） */
 .watchlist-stock-cost {
-    text-align: right;
+    text-align: left;
     font-family: var(--mono);
     font-variant-numeric: tabular-nums;
     line-height: 1.15;
@@ -1717,8 +1728,14 @@ body {
 
     .watchlist-header-row,
     .watchlist-item {
-        grid-template-columns: minmax(0, 1fr) 60px 50px 56px 20px;
-        gap: 6px;
+        grid-template-columns: minmax(0, 1fr) 56px 60px 20px;
+        gap: 8px;
+    }
+
+    .watchlist-header-row.with-cost,
+    .watchlist-grid.with-cost .watchlist-item {
+        grid-template-columns: minmax(0, 1fr) 56px 46px 52px 18px;
+        gap: 4px;
     }
 
     .watchlist-stock-price { font-size: 12px; }

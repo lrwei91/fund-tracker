@@ -1680,11 +1680,25 @@ function getAllWatchCodes() {
     return sanitizeCodes(getWatchTabs().flatMap(function (tab) { return tab.codes || []; }));
 }
 
+// 持仓股 tab 的代码：仅第一个分组（id === 'default'）
+function getHoldingCodes() {
+    var tabs = getWatchTabs();
+    var holding = tabs.find(function (tab) { return tab.id === 'default'; });
+    return sanitizeCodes(holding ? (holding.codes || []) : []);
+}
+
+// 持仓股 tab 是创建时的第一个 tab（id === 'default'，name 固定为"持仓股"）
+// 只有这个 tab 才显示成本价/盈亏列，避免对"候选股"等纯观察列造成干扰
+function isHoldingTab() {
+    return activeWatchTabId === 'default';
+}
+
 function renderWatchlist() {
     var grid = document.getElementById('watchlist-grid');
     var updateTimeEl = document.getElementById('watchlist-update-time');
     var codes = getWatchlist();
     var activeTab = getActiveWatchTab();
+    var showCost = isHoldingTab();
     if (codes.length === 0) {
         grid.innerHTML = '<div class="watchlist-empty">“' + escapeHtml(activeTab.name) + '”暂无股票</div>';
         if (updateTimeEl) updateTimeEl.textContent = '';
@@ -1702,9 +1716,17 @@ function renderWatchlist() {
             data ? data.changePercent : 0,
             data ? data.volume : '--',
             prev,
+            showCost,
         );
     }).join('');
     bindWatchRemove();
+    // 切换列数：持仓股 5 列（带成本），其他 4 列
+    grid.classList.toggle('with-cost', showCost);
+    document.querySelector('.watchlist-header-row')?.classList.toggle('with-cost', showCost);
+    // 编辑按钮只对持仓股 tab 有意义
+    var editBtn = document.getElementById('watchlist-edit-btn');
+    if (editBtn) editBtn.style.display = showCost ? '' : 'none';
+    if (!showCost) closeWatchlistEditPanel();
     if (updateTimeEl) updateTimeEl.textContent = watchQuoteUpdateTime || '';
 }
 
@@ -1779,7 +1801,7 @@ async function loadSingleWatchQuote(code) {
     }
 }
 
-function renderWatchItem(code, name, price, changePercent, volume, prev) {
+function renderWatchItem(code, name, price, changePercent, volume, prev, showCost) {
     var cls = changePercent > 0 ? 'positive' : changePercent < 0 ? 'negative' : 'neutral';
     var pt = changePercent !== 0
         ? (changePercent > 0 ? '+' + Number(changePercent).toFixed(2) : Number(changePercent).toFixed(2)) + '%'
@@ -1787,7 +1809,7 @@ function renderWatchItem(code, name, price, changePercent, volume, prev) {
     var arrow = trendArrow(changePercent, prev);
     var data = watchQuoteCache[code];
     var priceValue = data && typeof data.priceValue === 'number' ? data.priceValue : null;
-    var costCell = renderCostCell(code, priceValue);
+    var costCell = showCost ? renderCostCell(code, priceValue) : '';
     return '<div class="watchlist-item" data-code="' + escapeHtml(code) + '" data-pct="' + escapeHtml(changePercent) + '">' +
         '<div class="watchlist-item-main">' +
         '<div class="watchlist-stock-name">' + escapeHtml(name) + '</div>' +
@@ -1846,9 +1868,9 @@ function closeWatchlistEditPanel() {
 function renderWatchlistEditRows() {
     var wrap = document.getElementById('watchlist-edit-rows');
     if (!wrap) return;
-    var codes = getAllWatchCodes();
+    var codes = getHoldingCodes();
     if (codes.length === 0) {
-        wrap.innerHTML = '<div class="watchlist-empty">暂无自选股</div>';
+        wrap.innerHTML = '<div class="watchlist-empty">持仓股暂无股票</div>';
         return;
     }
     wrap.innerHTML = codes.map(function (code) {
