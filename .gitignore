@@ -1,4 +1,5 @@
 .vercel
 .env*
 .DS_Store
-shell/
+shell/dist/
+shell/node_modules/
