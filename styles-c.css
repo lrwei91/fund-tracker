@@ -339,9 +339,9 @@ body {
 }
 
 .custom-index-add:hover {
-    border-color: var(--accent);
-    color: var(--accent);
-    background: var(--accent-glow);
+    border-color: var(--amber);
+    color: var(--amber);
+    background: var(--amber-dim);
 }
 
 .custom-index-add .add-icon {
@@ -410,14 +410,14 @@ body {
 }
 
 .custom-index-add-form input:focus {
-    border-color: var(--accent);
+    border-color: var(--amber);
 }
 
 .custom-index-add-form button {
     padding: 6px 12px;
     border: none;
     border-radius: var(--radius-xs);
-    background: var(--accent);
+    background: var(--amber);
     color: #111827;
     font-size: 12px;
     font-weight: 700;
@@ -755,36 +755,37 @@ body {
 
 /* 标题右侧"编辑/保存"切换按钮（默认编辑，展开后变成高亮保存态） */
 .watchlist-edit-btn {
-    border: 1px solid var(--border-card);
+    border: 1px solid var(--border-strong);
     border-radius: var(--radius-xs);
     background: transparent;
     color: var(--text-secondary);
     font-size: 11px;
     font-weight: 700;
-    padding: 3px 11px;
+    padding: 3px 12px;
     margin-left: 6px;
     cursor: pointer;
     font-family: var(--font);
     -webkit-tap-highlight-color: transparent;
     transition: all 0.15s;
-    min-width: 44px;
+    min-width: 48px;
     text-align: center;
+    line-height: 1.4;
 }
 
 .watchlist-edit-btn:hover {
-    border-color: var(--accent);
-    color: var(--accent);
+    border-color: var(--amber);
+    color: var(--amber);
 }
 
-/* "保存"态：强调色填充，视觉上像主操作按钮 */
+/* "保存"态：金色填充，视觉上像主操作按钮 */
 .watchlist-edit-btn.active {
-    background: var(--accent);
-    border-color: var(--accent);
+    background: var(--amber);
+    border-color: var(--amber);
     color: #111827;
 }
 
 .watchlist-edit-btn.active:hover {
-    background: var(--accent);
+    background: var(--amber);
     color: #111827;
     opacity: 0.9;
 }
@@ -793,7 +794,7 @@ body {
 .watchlist-edit-panel {
     margin: 8px -14px 10px;
     background: var(--bg-secondary);
-    border: 1px solid var(--accent);
+    border: 1px solid var(--amber);
     border-radius: var(--radius-sm);
     padding: 0;
     overflow: hidden;
@@ -809,7 +810,7 @@ body {
     font-size: 11px;
     font-weight: 600;
     padding: 8px 12px;
-    background: var(--accent-glow);
+    background: var(--amber-dim);
     border-bottom: 1px solid var(--border-card);
     letter-spacing: 0.3px;
 }
@@ -819,7 +820,7 @@ body {
 }
 
 .watchlist-edit-panel-hint {
-    color: var(--accent);
+    color: var(--amber);
     font-size: 10px;
 }
 
@@ -888,10 +889,19 @@ body {
     outline: none;
     min-width: 0;
     width: 100%;
+    /* 移除 number input 原生上下调节器（spinner） */
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+.watchlist-edit-row input::-webkit-outer-spin-button,
+.watchlist-edit-row input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
 }
 
 .watchlist-edit-row input:focus {
-    border-color: var(--accent);
+    border-color: var(--amber);
 }
 
 .watchlist-edit-row input::placeholder {
