@@ -302,6 +302,135 @@ body {
 .index-change.negative { color: var(--green); }
 .index-change.neutral  { color: var(--text-tertiary); }
 
+/* ---------- 自选指数（板块/ETF，4 个 slot） ---------- */
+.custom-index-header-time {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin-right: auto;
+    margin-left: 8px;
+    font-family: var(--mono);
+    white-space: nowrap;
+}
+
+/* 占用一个 grid 位置的"+"添加按钮 */
+.custom-index-add {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 76px;
+    border: 1px dashed var(--border-card);
+    color: var(--text-tertiary);
+    background: transparent;
+    cursor: pointer;
+    font-family: var(--font);
+    font-size: 13px;
+    gap: 2px;
+    transition: all 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.custom-index-add:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-glow);
+}
+
+.custom-index-add .add-icon {
+    font-size: 18px;
+    line-height: 1;
+    font-weight: 300;
+}
+
+.custom-index-add .add-hint {
+    font-size: 10px;
+    opacity: 0.8;
+    letter-spacing: 0.3px;
+}
+
+/* 自选指数已填项：复用 .index-item 布局，叠加删除按钮 */
+.custom-index-data {
+    position: relative;
+}
+
+.custom-index-data .custom-index-remove {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 999px;
+    border: none;
+    background: rgba(0, 0, 0, 0.35);
+    color: var(--text-tertiary);
+    font-size: 10px;
+    line-height: 1;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.custom-index-data:hover .custom-index-remove {
+    display: flex;
+}
+
+.custom-index-data .custom-index-remove:hover {
+    background: var(--red-bg);
+    color: var(--red);
+}
+
+/* 添加股票输入弹层（在卡片标题旁） */
+.custom-index-add-form {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.custom-index-add-form input {
+    flex: 1;
+    padding: 6px 10px;
+    border: 1px solid var(--border-card);
+    border-radius: var(--radius-xs);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 12px;
+    font-family: var(--font);
+    outline: none;
+}
+
+.custom-index-add-form input:focus {
+    border-color: var(--accent);
+}
+
+.custom-index-add-form button {
+    padding: 6px 12px;
+    border: none;
+    border-radius: var(--radius-xs);
+    background: var(--accent);
+    color: #111827;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: var(--font);
+}
+
+.custom-index-add-form button:disabled {
+    opacity: 0.5;
+    cursor: wait;
+}
+
+.custom-index-status {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin-bottom: 6px;
+    min-height: 14px;
+}
+
+.custom-index-status.error { color: var(--red); }
+
 /* ---------- 自选股 ---------- */
 .watchlist-toolbar {
     display: flex;

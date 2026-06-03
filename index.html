@@ -11,7 +11,7 @@
         ⚠️ 注意：主样式是 styles-c.css（不要改 styles.css，那份已废弃）
         ?v= 每次部署需要手动 bump（或部署脚本里自动加 commit hash），破浏览器/CDN 缓存
     -->
-    <link rel="stylesheet" href="styles-c.css?v=8">
+    <link rel="stylesheet" href="styles-c.css?v=9">
 </head>
 <body>
 
@@ -71,6 +71,18 @@
                         <div class="index-change" id="zhuanke50-change">--</div>
                     </div>
                 </div>
+            </div>
+        </section>
+
+        <!-- 1.5 自选指数（板块/ETF） -->
+        <section class="card custom-index-section" data-collapsible="true">
+            <div class="card-header" role="button" tabindex="0">
+                <h2>自选指数</h2>
+                <span class="custom-index-header-time" id="custom-index-update-time"></span>
+                <span class="collapse-icon">▼</span>
+            </div>
+            <div class="card-body">
+                <div class="index-grid" id="custom-index-grid"></div>
             </div>
         </section>
 

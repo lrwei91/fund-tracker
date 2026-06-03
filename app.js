@@ -43,6 +43,10 @@ const WATCH_QUOTE_CACHE_KEY = 'fund_tracker_watch_quote_cache';
 const WATCH_QUOTE_UPDATE_TIME_KEY = 'fund_tracker_watch_quote_update_time';
 const ALERT_SETTINGS_KEY = 'fund_tracker_alert_settings';
 const WATCH_ALERT_STATE_KEY = 'fund_tracker_watch_alert_state';
+const CUSTOM_INDICES_KEY = 'fund_tracker_custom_indices';
+const CUSTOM_INDEX_QUOTE_CACHE_KEY = 'fund_tracker_custom_index_quote_cache';
+const CUSTOM_INDEX_UPDATE_TIME_KEY = 'fund_tracker_custom_index_update_time';
+const CUSTOM_INDEX_MAX = 4;
 
 // 实时数据缓存
 let liveIndexData = null;
@@ -50,6 +54,9 @@ let liveCapitalData = null;
 let liveSectorData = null;
 let watchQuoteCache = {};
 let watchQuoteUpdateTime = '';
+let customIndexCodes = [];        // 用户自选指数（板块/ETF），最多 4 个
+let customIndexCache = {};        // { code: { name, price, changePercent } }
+let customIndexUpdateTime = '';
 let hasInitialDataLoaded = false;
 
 // 涨跌幅告警状态
@@ -68,6 +75,25 @@ const ALERT_TOAST_TTL_MS = 20000;  // 单条弹窗自动消失时间
     try {
         var rawTime = localStorage.getItem(WATCH_QUOTE_UPDATE_TIME_KEY);
         if (rawTime) watchQuoteUpdateTime = rawTime;
+    } catch (e) { /* ignore */ }
+})();
+
+// 启动时从 localStorage 恢复自选指数(板块/ETF)
+(function restoreCustomIndexState() {
+    try {
+        var rawCodes = localStorage.getItem(CUSTOM_INDICES_KEY);
+        if (rawCodes) {
+            var parsed = JSON.parse(rawCodes);
+            if (Array.isArray(parsed)) customIndexCodes = parsed.filter(function (c) { return /^\d{6}$/.test(c); }).slice(0, CUSTOM_INDEX_MAX);
+        }
+    } catch (e) { /* ignore */ }
+    try {
+        var rawCache = localStorage.getItem(CUSTOM_INDEX_QUOTE_CACHE_KEY);
+        if (rawCache) customIndexCache = JSON.parse(rawCache) || {};
+    } catch (e) { /* ignore */ }
+    try {
+        var rawTime = localStorage.getItem(CUSTOM_INDEX_UPDATE_TIME_KEY);
+        if (rawTime) customIndexUpdateTime = rawTime;
     } catch (e) { /* ignore */ }
 })();
 
@@ -164,6 +190,7 @@ document.addEventListener('DOMContentLoaded', function () {
     initDataPanel();
     bindEvents();
     initAutoRefresh();
+    renderCustomIndex();
     // 页面初始化:按市场阶段决定是否发请求
     //  - 交易时段:正常拉取所有数据
     //  - 收盘后:只拉日级数据,实时数据从缓存渲染
@@ -586,6 +613,7 @@ function getShanghaiDateKey() {
 function loadIntradayData() {
     loadIndexData();
     loadWatchlistData();
+    loadCustomIndexData();
 }
 
 function loadIntradaySignalData() {
@@ -656,6 +684,13 @@ function renderRealtimeFromCache() {
         refreshStaleWatchQuotes();
     }
 
+    // 自选指数:customIndexCache 已在启动时从 localStorage 恢复
+    renderCustomIndex();
+    if (customIndexCodes.length > 0) {
+        anyRendered = true;
+        refreshStaleCustomIndex();
+    }
+
     if (!anyRendered) {
         setLastUpdated('非交易时段 · 暂无缓存');
     }
@@ -694,6 +729,34 @@ function refreshStaleWatchQuotes() {
             try { localStorage.setItem(WATCH_REFRESH_THROTTLE_KEY, String(Date.now())); } catch (e) {}
         })
         .catch(function () { /* 非交易时段拉取失败属正常,静默 */ });
+}
+
+// 自选指数版：复用同一个 5 分钟节流键（避免和自选股相互打架）
+function refreshStaleCustomIndex() {
+    if (customIndexCodes.length === 0) return;
+    var stale = customIndexCodes.filter(function (c) { return !customIndexCache[c]; });
+    if (stale.length === 0) return;
+
+    var lastPull = 0;
+    try { lastPull = parseInt(localStorage.getItem(WATCH_REFRESH_THROTTLE_KEY) || '0', 10) || 0; } catch (e) {}
+    if (Date.now() - lastPull < WATCH_REFRESH_THROTTLE_MS) return;
+
+    fetch(apiUrl('/stock', { codes: stale.join(',') }))
+        .then(function (res) { return res.ok ? res.json() : null; })
+        .then(function (result) {
+            if (!result || !result.success || !result.data) return;
+            Object.keys(result.data).forEach(function (code) {
+                var d = result.data[code];
+                if (d && d.price !== '0.00') customIndexCache[code] = d;
+            });
+            if (result.time) {
+                customIndexUpdateTime = result.time;
+                persistCustomIndexUpdateTime(result.time);
+            }
+            persistCustomIndexCache();
+            renderCustomIndex();
+        })
+        .catch(function () { /* ignore */ });
 }
 
 function renderCapitalUI(cap) {
@@ -755,6 +818,7 @@ function startMainAutoRefresh() {
         if (isIntradayRefreshWindow()) {
             loadIndexData();
             loadWatchlistData();
+            loadCustomIndexData();
         }
     }, refreshSecondsMain * 1000);
 }
@@ -1709,6 +1773,183 @@ function bindWatchRemove() {
             removeStockFromWatchlist(this.getAttribute('data-code'));
         });
     });
+}
+
+// ---------- 自选指数（板块/ETF，最多 4 个） ----------
+function saveCustomIndices() {
+    try { localStorage.setItem(CUSTOM_INDICES_KEY, JSON.stringify(customIndexCodes)); } catch (e) {}
+}
+function persistCustomIndexCache() {
+    try { localStorage.setItem(CUSTOM_INDEX_QUOTE_CACHE_KEY, JSON.stringify(customIndexCache)); } catch (e) {}
+}
+function persistCustomIndexUpdateTime(value) {
+    try { localStorage.setItem(CUSTOM_INDEX_UPDATE_TIME_KEY, value || ''); } catch (e) {}
+}
+
+function renderCustomIndex() {
+    var grid = document.getElementById('custom-index-grid');
+    var updateTimeEl = document.getElementById('custom-index-update-time');
+    if (!grid) return;
+
+    var items = customIndexCodes.map(function (code) {
+        var d = customIndexCache[code];
+        var name = d && d.name ? d.name : code + '（待刷新）';
+        var price = d && d.price != null ? d.price : '--';
+        var pct = d && typeof d.changePercent === 'number' ? d.changePercent : 0;
+        return renderCustomIndexItem(code, name, price, pct);
+    });
+
+    // 满 4 个不显示加号；未满追加 1 个加号格子
+    if (customIndexCodes.length < CUSTOM_INDEX_MAX) {
+        items.push(
+            '<button type="button" class="custom-index-add" data-custom-index-add="1">' +
+            '<span class="add-icon">+</span>' +
+            '<span class="add-hint">添加指数</span>' +
+            '</button>'
+        );
+    }
+
+    grid.innerHTML = items.join('');
+    bindCustomIndexRemove();
+    bindCustomIndexAdd();
+    if (updateTimeEl) updateTimeEl.textContent = customIndexUpdateTime || '';
+}
+
+function renderCustomIndexItem(code, name, price, changePercent) {
+    var cls = changePercent > 0 ? 'positive' : changePercent < 0 ? 'negative' : 'neutral';
+    var pt = changePercent !== 0
+        ? (changePercent > 0 ? '+' + Number(changePercent).toFixed(2) : Number(changePercent).toFixed(2)) + '%'
+        : '0.00%';
+    return '<div class="index-item custom-index-data" data-code="' + escapeHtml(code) + '">' +
+        '<div class="index-name">' + escapeHtml(name) + '</div>' +
+        '<div class="index-value ' + cls + '">' + escapeHtml(price) + '</div>' +
+        '<div class="index-change ' + cls + '">' + escapeHtml(pt) + '</div>' +
+        '<button type="button" class="custom-index-remove" data-remove-custom-index="' + escapeHtml(code) + '" aria-label="删除 ' + escapeHtml(code) + '">✕</button>' +
+        '</div>';
+}
+
+function bindCustomIndexRemove() {
+    document.querySelectorAll('[data-remove-custom-index]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            var code = this.getAttribute('data-remove-custom-index');
+            removeCustomIndex(code);
+        });
+    });
+}
+
+function bindCustomIndexAdd() {
+    document.querySelectorAll('[data-custom-index-add]').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            openCustomIndexAddForm();
+        });
+    });
+}
+
+// 用 prompt 快速加；避免在卡片里塞输入框布局
+function openCustomIndexAddForm() {
+    var raw = window.prompt('输入指数 / ETF / 板块代码（6 位数字）或名称', '');
+    if (raw == null) return;
+    var value = String(raw).trim();
+    if (!value) return;
+    addCustomIndexByInput(value);
+}
+
+async function addCustomIndexByInput(rawValue) {
+    showCustomIndexStatus('查询中…');
+    try {
+        var match = await resolveStockInput(rawValue);
+        var code = match.code;
+        if (customIndexCodes.includes(code)) {
+            showCustomIndexStatus('已在自选指数中', 'error');
+            return;
+        }
+        if (customIndexCodes.length >= CUSTOM_INDEX_MAX) {
+            showCustomIndexStatus('自选指数最多 ' + CUSTOM_INDEX_MAX + ' 个，请先删除', 'error');
+            return;
+        }
+        customIndexCodes.push(code);
+        saveCustomIndices();
+        renderCustomIndex();
+        showCustomIndexStatus((match.name || code) + ' 已添加');
+        // 立即拉一次该指数行情
+        loadSingleCustomIndex(code);
+    } catch (e) {
+        showCustomIndexStatus(e.message || '未找到匹配指数', 'error');
+    }
+}
+
+function removeCustomIndex(code) {
+    customIndexCodes = customIndexCodes.filter(function (c) { return c !== code; });
+    delete customIndexCache[code];
+    saveCustomIndices();
+    persistCustomIndexCache();
+    renderCustomIndex();
+    showCustomIndexStatus('已删除');
+}
+
+function showCustomIndexStatus(msg, type) {
+    var el = document.querySelector('.custom-index-status');
+    if (!el) {
+        var section = document.querySelector('.custom-index-section');
+        if (!section) return;
+        el = document.createElement('div');
+        el.className = 'custom-index-status';
+        var body = section.querySelector('.card-body');
+        if (body) body.insertBefore(el, body.firstChild);
+    }
+    el.textContent = msg;
+    el.className = 'custom-index-status' + (type === 'error' ? ' error' : '');
+    setTimeout(function () {
+        if (el.textContent === msg) {
+            el.textContent = '';
+            el.className = 'custom-index-status';
+        }
+    }, 2500);
+}
+
+async function loadCustomIndexData() {
+    if (customIndexCodes.length === 0) {
+        renderCustomIndex();
+        return;
+    }
+    try {
+        var res = await fetch(apiUrl('/stock', { codes: customIndexCodes.join(',') }));
+        if (!res.ok) throw new Error('请求失败 ' + res.status);
+        var result = await res.json();
+        if (!result.success || !result.data) throw new Error('数据异常');
+        Object.keys(result.data).forEach(function (code) {
+            var d = result.data[code];
+            if (d && d.price !== '0.00') customIndexCache[code] = d;
+        });
+        if (result.time) {
+            customIndexUpdateTime = result.time;
+            persistCustomIndexUpdateTime(result.time);
+        }
+        persistCustomIndexCache();
+        renderCustomIndex();
+    } catch (e) {
+        // 非交易时段拉取失败属正常，渲染缓存即可
+        renderCustomIndex();
+    }
+}
+
+async function loadSingleCustomIndex(code) {
+    try {
+        var res = await fetch(apiUrl('/stock', { codes: code }));
+        if (!res.ok) return;
+        var result = await res.json();
+        if (!result.success || !result.data) return;
+        var d = result.data[code];
+        if (d && d.price !== '0.00') customIndexCache[code] = d;
+        if (result.time) {
+            customIndexUpdateTime = result.time;
+            persistCustomIndexUpdateTime(result.time);
+        }
+        persistCustomIndexCache();
+        renderCustomIndex();
+    } catch (e) { /* ignore */ }
 }
 
 // ---------- 涨跌幅告警 ----------
