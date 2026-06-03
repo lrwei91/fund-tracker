@@ -575,16 +575,20 @@ body {
 .add-btn:disabled { cursor: wait; opacity: 0.4; }
 
 /* Column headers — table-style */
+/* 关键：让"价格/涨跌幅/操作"列在持仓股和非持仓股 tab 下位置和宽度完全一致
+   只在"成本价"列和 1fr 区域有差异，避免切换时整张表"抖"一下
+   列宽定义：4 列 [1fr, 64, 84, 26] / 5 列 [1fr, 64(cost), 64(price), 84(change), 26]
+   gap 一律 12px（之前 4 列 16/5 列 12 也是抖动源头） */
 .watchlist-header-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 82px 92px 26px;
+    grid-template-columns: minmax(0, 1fr) 64px 84px 26px;
     align-items: center;
     padding: 7px 14px;
     color: var(--text-tertiary);
     font-size: 10px;
     font-weight: 700;
     font-family: var(--mono);
-    gap: 16px;
+    gap: 12px;
     letter-spacing: 0.8px;
     text-transform: uppercase;
     border-bottom: 1px solid var(--border-strong);
@@ -594,8 +598,7 @@ body {
 }
 
 .watchlist-header-row.with-cost {
-    grid-template-columns: minmax(0, 1fr) 88px 64px 84px 26px;
-    gap: 12px;
+    grid-template-columns: minmax(0, 1fr) 64px 64px 84px 26px;
 }
 
 .watchlist-header-name { }
@@ -637,15 +640,14 @@ body {
     border-bottom: 1px solid var(--border);
     padding: 10px 14px;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 82px 92px 26px;
+    grid-template-columns: minmax(0, 1fr) 64px 84px 26px;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
     border-radius: 0;
 }
 
 .watchlist-grid.with-cost .watchlist-item {
-    grid-template-columns: minmax(0, 1fr) 88px 64px 84px 26px;
-    gap: 12px;
+    grid-template-columns: minmax(0, 1fr) 64px 64px 84px 26px;
 }
 
 .watchlist-item:nth-child(even) {
@@ -1757,14 +1759,13 @@ body {
 
     .watchlist-header-row,
     .watchlist-item {
-        grid-template-columns: minmax(0, 1fr) 56px 60px 20px;
-        gap: 8px;
+        grid-template-columns: minmax(0, 1fr) 48px 64px 18px;
+        gap: 6px;
     }
 
     .watchlist-header-row.with-cost,
     .watchlist-grid.with-cost .watchlist-item {
-        grid-template-columns: minmax(0, 1fr) 56px 46px 52px 18px;
-        gap: 4px;
+        grid-template-columns: minmax(0, 1fr) 48px 48px 64px 18px;
     }
 
     .watchlist-stock-price { font-size: 12px; }
