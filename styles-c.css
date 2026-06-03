@@ -753,20 +753,22 @@ body {
 .watchlist-stock-cost .cost-pnl.positive { color: var(--red); }
 .watchlist-stock-cost .cost-pnl.negative { color: var(--green); }
 
-/* 标题右侧"编辑"按钮 */
+/* 标题右侧"编辑/保存"切换按钮（默认编辑，展开后变成高亮保存态） */
 .watchlist-edit-btn {
     border: 1px solid var(--border-card);
     border-radius: var(--radius-xs);
     background: transparent;
     color: var(--text-secondary);
     font-size: 11px;
-    font-weight: 600;
-    padding: 3px 9px;
+    font-weight: 700;
+    padding: 3px 11px;
     margin-left: 6px;
     cursor: pointer;
     font-family: var(--font);
     -webkit-tap-highlight-color: transparent;
     transition: all 0.15s;
+    min-width: 44px;
+    text-align: center;
 }
 
 .watchlist-edit-btn:hover {
@@ -774,19 +776,27 @@ body {
     color: var(--accent);
 }
 
+/* "保存"态：强调色填充，视觉上像主操作按钮 */
 .watchlist-edit-btn.active {
-    background: var(--accent-glow);
+    background: var(--accent);
     border-color: var(--accent);
-    color: var(--accent);
+    color: #111827;
+}
+
+.watchlist-edit-btn.active:hover {
+    background: var(--accent);
+    color: #111827;
+    opacity: 0.9;
 }
 
 /* 编辑面板：逐行填成本价/股数 */
 .watchlist-edit-panel {
     margin: 8px -14px 10px;
     background: var(--bg-secondary);
-    border: 1px solid var(--border-card);
+    border: 1px solid var(--accent);
     border-radius: var(--radius-sm);
-    padding: 10px 12px 12px;
+    padding: 0;
+    overflow: hidden;
 }
 
 .watchlist-edit-panel[hidden] { display: none; }
@@ -796,32 +806,39 @@ body {
     align-items: center;
     justify-content: space-between;
     color: var(--text-secondary);
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
-    margin-bottom: 8px;
+    padding: 8px 12px;
+    background: var(--accent-glow);
+    border-bottom: 1px solid var(--border-card);
+    letter-spacing: 0.3px;
 }
 
-.watchlist-edit-panel-close {
-    border: none;
-    background: transparent;
-    color: var(--text-tertiary);
-    font-size: 14px;
-    cursor: pointer;
-    padding: 0 4px;
-    line-height: 1;
-    -webkit-tap-highlight-color: transparent;
+.watchlist-edit-panel-title {
+    color: var(--text-primary);
+}
+
+.watchlist-edit-panel-hint {
+    color: var(--accent);
+    font-size: 10px;
 }
 
 .watchlist-edit-rows {
     display: grid;
-    gap: 6px;
+    gap: 0;
+    padding: 4px 0;
 }
 
 .watchlist-edit-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 90px 90px;
-    gap: 6px;
+    grid-template-columns: minmax(0, 1fr) 80px 80px;
+    gap: 8px;
     align-items: center;
+    padding: 4px 12px;
+}
+
+.watchlist-edit-row + .watchlist-edit-row {
+    border-top: 1px solid var(--border-subtle);
 }
 
 .watchlist-edit-row-name {
@@ -831,13 +848,32 @@ body {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
 }
 
 .watchlist-edit-row-name .edit-row-code {
     color: var(--text-tertiary);
     font-size: 10px;
     font-family: var(--mono);
-    margin-left: 4px;
+    flex-shrink: 0;
+}
+
+.watchlist-edit-row-field {
+    position: relative;
+}
+
+.watchlist-edit-row-field-label {
+    position: absolute;
+    top: 50%;
+    left: 6px;
+    transform: translateY(-50%);
+    font-size: 9px;
+    color: var(--text-tertiary);
+    font-family: var(--font);
+    pointer-events: none;
+    letter-spacing: 0.3px;
 }
 
 .watchlist-edit-row input {
@@ -862,27 +898,6 @@ body {
     color: var(--text-tertiary);
     font-family: var(--font);
 }
-
-.watchlist-edit-actions {
-    display: flex;
-    justify-content: flex-end;
-    margin-top: 10px;
-}
-
-.watchlist-edit-save {
-    border: none;
-    border-radius: var(--radius-xs);
-    background: var(--accent);
-    color: #111827;
-    font-size: 12px;
-    font-weight: 700;
-    padding: 6px 16px;
-    cursor: pointer;
-    font-family: var(--font);
-    -webkit-tap-highlight-color: transparent;
-}
-
-.watchlist-edit-save:active { opacity: 0.85; }
 
 .trend-arrow {
     font-size: 11px;

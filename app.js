@@ -506,20 +506,20 @@ function bindEvents() {
     });
     document.getElementById('refresh-btn').addEventListener('click', manualRefreshAll);
 
+    // 编辑按钮：默认"编辑"展开面板，再次点击变"保存"保存并关闭
     var editBtn = document.getElementById('watchlist-edit-btn');
     if (editBtn) {
         editBtn.addEventListener('click', function (e) {
             e.stopPropagation();
             var panel = document.getElementById('watchlist-edit-panel');
             if (!panel) return;
-            if (panel.hidden) openWatchlistEditPanel();
-            else closeWatchlistEditPanel();
+            if (panel.hidden) {
+                openWatchlistEditPanel();
+            } else {
+                saveWatchlistEditPanel();
+            }
         });
     }
-    var editClose = document.getElementById('watchlist-edit-panel-close');
-    if (editClose) editClose.addEventListener('click', closeWatchlistEditPanel);
-    var editSave = document.getElementById('watchlist-edit-save');
-    if (editSave) editSave.addEventListener('click', saveWatchlistEditPanel);
 }
 
 function apiUrl(path, params) {
@@ -1848,21 +1848,28 @@ function saveWatchlistCost() {
     try { localStorage.setItem(WATCHLIST_COST_KEY, JSON.stringify(watchlistCost)); } catch (e) {}
 }
 
-// 编辑面板：列出所有 watchlist 股票，填成本/股数
-function openWatchlistEditPanel() {
+// 编辑按钮：默认显示"编辑"，点击展开后变成"保存"（高亮强调色）
+function syncEditButtonLabel() {
     var panel = document.getElementById('watchlist-edit-panel');
     var btn = document.getElementById('watchlist-edit-btn');
+    if (!btn) return;
+    var isOpen = panel && !panel.hidden;
+    btn.textContent = isOpen ? '保存' : '编辑';
+    btn.classList.toggle('active', !!isOpen);
+}
+
+function openWatchlistEditPanel() {
+    var panel = document.getElementById('watchlist-edit-panel');
     if (!panel) return;
     panel.hidden = false;
-    if (btn) btn.classList.add('active');
     renderWatchlistEditRows();
+    syncEditButtonLabel();
 }
 
 function closeWatchlistEditPanel() {
     var panel = document.getElementById('watchlist-edit-panel');
-    var btn = document.getElementById('watchlist-edit-btn');
     if (panel) panel.hidden = true;
-    if (btn) btn.classList.remove('active');
+    syncEditButtonLabel();
 }
 
 function renderWatchlistEditRows() {
