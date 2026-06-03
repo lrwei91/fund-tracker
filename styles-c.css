@@ -543,7 +543,7 @@ body {
 
 /* Change % — colored bar background */
 .watchlist-stock-change {
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 700;
     font-family: var(--mono);
     text-align: right;
@@ -631,7 +631,7 @@ body {
 }
 
 .capital-label {
-    font-size: 12px;
+    font-size: 11px;
     color: var(--text-tertiary);
     margin-bottom: 4px;
     font-weight: 600;
@@ -641,7 +641,7 @@ body {
 }
 
 .capital-value {
-    font-size: 24px;
+    font-size: 18px;
     font-weight: 700;
     font-family: var(--mono);
     letter-spacing: -0.5px;
@@ -671,7 +671,7 @@ body {
     border-radius: 0;
     background: transparent;
     color: var(--text-tertiary);
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 700;
     font-family: var(--mono);
     cursor: pointer;
@@ -1073,7 +1073,7 @@ body {
 }
 
 .news-title {
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 600;
     line-height: 1.35;
     flex: 1;
