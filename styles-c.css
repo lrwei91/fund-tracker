@@ -600,8 +600,12 @@ body {
 
 .watchlist-header-name { }
 .watchlist-header-cost {
+    display: none;
     text-align: left;
     padding-left: 8px;
+}
+.watchlist-header-row.with-cost .watchlist-header-cost {
+    display: block;
 }
 .watchlist-header-price {
     text-align: right;
