@@ -1796,7 +1796,8 @@ function renderCustomIndex() {
         var name = d && d.name ? d.name : code + '（待刷新）';
         var price = d && d.price != null ? d.price : '--';
         var pct = d && typeof d.changePercent === 'number' ? d.changePercent : 0;
-        return renderCustomIndexItem(code, name, price, pct);
+        var change = d && typeof d.change === 'number' ? d.change : null;
+        return renderCustomIndexItem(code, name, price, pct, change);
     });
 
     // 满 4 个不显示加号；未满追加 1 个加号格子
@@ -1815,15 +1816,20 @@ function renderCustomIndex() {
     if (updateTimeEl) updateTimeEl.textContent = customIndexUpdateTime || '';
 }
 
-function renderCustomIndexItem(code, name, price, changePercent) {
+function renderCustomIndexItem(code, name, price, changePercent, change) {
     var cls = changePercent > 0 ? 'positive' : changePercent < 0 ? 'negative' : 'neutral';
-    var pt = changePercent !== 0
-        ? (changePercent > 0 ? '+' + Number(changePercent).toFixed(2) : Number(changePercent).toFixed(2)) + '%'
+    // 跟大盘指数同排版：涨跌额 / 涨跌幅
+    var changeStr = '--';
+    if (typeof change === 'number' && Number.isFinite(change)) {
+        changeStr = (change > 0 ? '+' : '') + change.toFixed(2);
+    }
+    var pctStr = (typeof changePercent === 'number' && Number.isFinite(changePercent) && changePercent !== 0)
+        ? (changePercent > 0 ? '+' : '') + changePercent.toFixed(2) + '%'
         : '0.00%';
     return '<div class="index-item custom-index-data" data-code="' + escapeHtml(code) + '">' +
         '<div class="index-name">' + escapeHtml(name) + '</div>' +
         '<div class="index-value ' + cls + '">' + escapeHtml(price) + '</div>' +
-        '<div class="index-change ' + cls + '">' + escapeHtml(pt) + '</div>' +
+        '<div class="index-change ' + cls + '">' + escapeHtml(changeStr) + ' / ' + escapeHtml(pctStr) + '</div>' +
         '<button type="button" class="custom-index-remove" data-remove-custom-index="' + escapeHtml(code) + '" aria-label="删除 ' + escapeHtml(code) + '">✕</button>' +
         '</div>';
 }

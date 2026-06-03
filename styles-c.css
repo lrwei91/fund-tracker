@@ -303,6 +303,14 @@ body {
 .index-change.neutral  { color: var(--text-tertiary); }
 
 /* ---------- 自选指数（板块/ETF，4 个 slot） ---------- */
+.custom-index-section .card-header {
+    padding: 8px 14px 4px;
+}
+
+.custom-index-section .card-body {
+    padding: 0 0 6px;
+}
+
 .custom-index-header-time {
     font-size: 11px;
     color: var(--text-tertiary);
@@ -318,7 +326,7 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-height: 76px;
+    min-height: 56px;
     border: 1px dashed var(--border-card);
     color: var(--text-tertiary);
     background: transparent;
