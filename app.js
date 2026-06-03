@@ -47,6 +47,7 @@ const CUSTOM_INDICES_KEY = 'fund_tracker_custom_indices';
 const CUSTOM_INDEX_QUOTE_CACHE_KEY = 'fund_tracker_custom_index_quote_cache';
 const CUSTOM_INDEX_UPDATE_TIME_KEY = 'fund_tracker_custom_index_update_time';
 const CUSTOM_INDEX_MAX = 4;
+const WATCHLIST_COST_KEY = 'fund_tracker_watchlist_cost';
 
 // 实时数据缓存
 let liveIndexData = null;
@@ -57,6 +58,7 @@ let watchQuoteUpdateTime = '';
 let customIndexCodes = [];        // 用户自选指数（板块/ETF），最多 4 个
 let customIndexCache = {};        // { code: { name, price, changePercent } }
 let customIndexUpdateTime = '';
+let watchlistCost = {};           // 自选股持仓成本/股数 { [code]: { cost, shares } }
 let hasInitialDataLoaded = false;
 
 // 涨跌幅告警状态
@@ -94,6 +96,17 @@ const ALERT_TOAST_TTL_MS = 20000;  // 单条弹窗自动消失时间
     try {
         var rawTime = localStorage.getItem(CUSTOM_INDEX_UPDATE_TIME_KEY);
         if (rawTime) customIndexUpdateTime = rawTime;
+    } catch (e) { /* ignore */ }
+})();
+
+// 启动时从 localStorage 恢复自选股持仓成本/股数
+(function restoreWatchlistCost() {
+    try {
+        var raw = localStorage.getItem(WATCHLIST_COST_KEY);
+        if (raw) {
+            var parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === 'object') watchlistCost = parsed;
+        }
     } catch (e) { /* ignore */ }
 })();
 
@@ -492,6 +505,21 @@ function bindEvents() {
         if (e.key === 'Enter') addStockToWatchlist();
     });
     document.getElementById('refresh-btn').addEventListener('click', manualRefreshAll);
+
+    var editBtn = document.getElementById('watchlist-edit-btn');
+    if (editBtn) {
+        editBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            var panel = document.getElementById('watchlist-edit-panel');
+            if (!panel) return;
+            if (panel.hidden) openWatchlistEditPanel();
+            else closeWatchlistEditPanel();
+        });
+    }
+    var editClose = document.getElementById('watchlist-edit-panel-close');
+    if (editClose) editClose.addEventListener('click', closeWatchlistEditPanel);
+    var editSave = document.getElementById('watchlist-edit-save');
+    if (editSave) editSave.addEventListener('click', saveWatchlistEditPanel);
 }
 
 function apiUrl(path, params) {
@@ -1757,13 +1785,107 @@ function renderWatchItem(code, name, price, changePercent, volume, prev) {
         ? (changePercent > 0 ? '+' + Number(changePercent).toFixed(2) : Number(changePercent).toFixed(2)) + '%'
         : '0.00%';
     var arrow = trendArrow(changePercent, prev);
+    var data = watchQuoteCache[code];
+    var priceValue = data && typeof data.priceValue === 'number' ? data.priceValue : null;
+    var costCell = renderCostCell(code, priceValue);
     return '<div class="watchlist-item" data-code="' + escapeHtml(code) + '" data-pct="' + escapeHtml(changePercent) + '">' +
         '<div class="watchlist-item-main">' +
         '<div class="watchlist-stock-name">' + escapeHtml(name) + '</div>' +
         '<div class="watchlist-stock-code">' + escapeHtml(code) + '</div></div>' +
+        costCell +
         '<div class="watchlist-stock-price ' + cls + '">' + escapeHtml(price) + '</div>' +
         '<div class="watchlist-stock-change ' + cls + '">' + escapeHtml(pt) + ' <span class="trend-arrow">' + escapeHtml(arrow) + '</span></div>' +
         '<button class="watchlist-remove-btn" data-code="' + escapeHtml(code) + '" aria-label="删除 ' + escapeHtml(code) + '">✕</button></div>';
+}
+
+function renderCostCell(code, priceValue) {
+    var entry = watchlistCost[code];
+    if (!entry || typeof entry.cost !== 'number' || !Number.isFinite(entry.cost)) {
+        return '<div class="watchlist-stock-cost">' +
+            '<div class="cost-value empty">--</div>' +
+            '<div class="cost-pnl">未设成本</div>' +
+            '</div>';
+    }
+    var cost = entry.cost;
+    var shares = typeof entry.shares === 'number' && Number.isFinite(entry.shares) ? entry.shares : 0;
+    var pnl = null;
+    if (priceValue !== null && Number.isFinite(priceValue)) {
+        pnl = (priceValue - cost) * shares;
+    }
+    var pnlCls = pnl === null ? '' : (pnl > 0 ? 'positive' : pnl < 0 ? 'negative' : '');
+    var pnlText = pnl === null
+        ? '--'
+        : (pnl > 0 ? '+' : '') + pnl.toFixed(2);
+    return '<div class="watchlist-stock-cost">' +
+        '<div class="cost-value">' + cost.toFixed(2) + '</div>' +
+        '<div class="cost-pnl ' + pnlCls + '">' + pnlText + '</div>' +
+        '</div>';
+}
+
+function saveWatchlistCost() {
+    try { localStorage.setItem(WATCHLIST_COST_KEY, JSON.stringify(watchlistCost)); } catch (e) {}
+}
+
+// 编辑面板：列出所有 watchlist 股票，填成本/股数
+function openWatchlistEditPanel() {
+    var panel = document.getElementById('watchlist-edit-panel');
+    var btn = document.getElementById('watchlist-edit-btn');
+    if (!panel) return;
+    panel.hidden = false;
+    if (btn) btn.classList.add('active');
+    renderWatchlistEditRows();
+}
+
+function closeWatchlistEditPanel() {
+    var panel = document.getElementById('watchlist-edit-panel');
+    var btn = document.getElementById('watchlist-edit-btn');
+    if (panel) panel.hidden = true;
+    if (btn) btn.classList.remove('active');
+}
+
+function renderWatchlistEditRows() {
+    var wrap = document.getElementById('watchlist-edit-rows');
+    if (!wrap) return;
+    var codes = getAllWatchCodes();
+    if (codes.length === 0) {
+        wrap.innerHTML = '<div class="watchlist-empty">暂无自选股</div>';
+        return;
+    }
+    wrap.innerHTML = codes.map(function (code) {
+        var data = watchQuoteCache[code];
+        var name = (data && data.name) || code;
+        var entry = watchlistCost[code] || {};
+        var costVal = typeof entry.cost === 'number' ? entry.cost : '';
+        var sharesVal = typeof entry.shares === 'number' ? entry.shares : '';
+        return '<div class="watchlist-edit-row" data-code="' + escapeHtml(code) + '">' +
+            '<div class="watchlist-edit-row-name">' + escapeHtml(name) + '<span class="edit-row-code">' + escapeHtml(code) + '</span></div>' +
+            '<input type="number" step="0.01" min="0" class="edit-cost-input" placeholder="成本价" value="' + escapeHtml(String(costVal)) + '" />' +
+            '<input type="number" step="1" min="0" class="edit-shares-input" placeholder="股数" value="' + escapeHtml(String(sharesVal)) + '" />' +
+            '</div>';
+    }).join('');
+}
+
+function saveWatchlistEditPanel() {
+    var rows = document.querySelectorAll('.watchlist-edit-row');
+    rows.forEach(function (row) {
+        var code = row.getAttribute('data-code');
+        var costInput = row.querySelector('.edit-cost-input');
+        var sharesInput = row.querySelector('.edit-shares-input');
+        var cost = parseFloat(costInput.value);
+        var shares = parseFloat(sharesInput.value);
+        if (Number.isFinite(cost) && cost > 0) {
+            watchlistCost[code] = {
+                cost: cost,
+                shares: Number.isFinite(shares) && shares > 0 ? shares : 0,
+            };
+        } else {
+            delete watchlistCost[code];
+        }
+    });
+    saveWatchlistCost();
+    renderWatchlist();
+    closeWatchlistEditPanel();
+    showWatchStatus('成本已保存');
 }
 
 function bindWatchRemove() {

@@ -11,7 +11,7 @@
         ⚠️ 注意：主样式是 styles-c.css（不要改 styles.css，那份已废弃）
         ?v= 每次部署需要手动 bump（或部署脚本里自动加 commit hash），破浏览器/CDN 缓存
     -->
-    <link rel="stylesheet" href="styles-c.css?v=11">
+    <link rel="stylesheet" href="styles-c.css?v=12">
 </head>
 <body>
 
@@ -91,6 +91,7 @@
             <div class="card-header" role="button" tabindex="0">
                 <h2>自选股</h2>
                 <span class="watchlist-header-time" id="watchlist-update-time"></span>
+                <button class="watchlist-edit-btn" id="watchlist-edit-btn" type="button" aria-label="编辑持仓成本">编辑</button>
                 <span class="collapse-icon">▼</span>
             </div>
             <div class="card-body">
@@ -102,8 +103,19 @@
                     <input type="text" id="stock-code-input" placeholder="输入代码或股票名，如 600519 / 贵州茅台">
                     <button id="add-stock-btn" class="add-btn">添加</button>
                 </div>
+                <div class="watchlist-edit-panel" id="watchlist-edit-panel" hidden>
+                    <div class="watchlist-edit-panel-header">
+                        <span>编辑持仓成本 / 股数</span>
+                        <button class="watchlist-edit-panel-close" id="watchlist-edit-panel-close" type="button" aria-label="关闭编辑面板">✕</button>
+                    </div>
+                    <div class="watchlist-edit-rows" id="watchlist-edit-rows"></div>
+                    <div class="watchlist-edit-actions">
+                        <button class="watchlist-edit-save" id="watchlist-edit-save" type="button">保存</button>
+                    </div>
+                </div>
                 <div class="watchlist-header-row">
                     <span class="watchlist-header-name">股票名</span>
+                    <span class="watchlist-header-cost">成本价</span>
                     <span class="watchlist-header-price">股价</span>
                     <span class="watchlist-header-change">涨跌幅</span>
                     <span class="watchlist-header-action"></span>
