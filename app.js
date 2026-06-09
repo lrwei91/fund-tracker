@@ -955,6 +955,13 @@ function updateIndexUI(id, data) {
         span.textContent = arrow;
         v.appendChild(span);
     }
+    // DEBUG: 大盘指数 trend-arrow 排查
+    console.log('[index]', id,
+        'now=', data.priceValue,
+        'prev=', prev,
+        'arrow=', arrow,
+        'updatedAt=', new Date(readIndexPrevBucket('market')._updatedAt).toLocaleTimeString('zh-CN', { timeZone: 'Asia/Shanghai' })
+    );
 }
 
 async function loadIndexData() {
@@ -977,8 +984,14 @@ async function loadIndexData() {
         liveIndexData = result.data;
         writeTimedCache(SHORT_CACHE_KEYS.index, result.data);
         Object.keys(result.data).forEach(function (id) { updateIndexUI(id, result.data[id]); });
+        // DEBUG: 节流落盘前先告诉调用者要不要 due
+        var bucketBefore = readIndexPrevBucket('market');
+        var willDue = (Date.now() - bucketBefore._updatedAt) >= INDEX_REFRESH_SECONDS * 1000;
+        console.log('[index] fetch ok, willDue(prev-落盘)=', willDue,
+            '距上次落盘=', Math.round((Date.now() - bucketBefore._updatedAt) / 1000), 's, 节流间隔=', INDEX_REFRESH_SECONDS, 's');
         // 半小时节流:刷新节奏不变,只决定 prev 落盘的节奏
-        persistIndexPrevIfDue('market', snapshotIndexPrice(result.data));
+        var updated = persistIndexPrevIfDue('market', snapshotIndexPrice(result.data));
+        console.log('[index] persistIndexPrevIfDue 返回:', updated);
         setLastUpdated('行情已更新');
     } catch (e) {
         if (!liveIndexData) setLastUpdated('行情获取失败');
@@ -2186,8 +2199,14 @@ async function loadCustomIndexData() {
             persistCustomIndexUpdateTime(result.time);
         }
         persistCustomIndexCache();
+        // DEBUG: 节流落盘前先告诉调用者要不要 due
+        var bucketBefore = readIndexPrevBucket('custom');
+        var willDue = (Date.now() - bucketBefore._updatedAt) >= INDEX_REFRESH_SECONDS * 1000;
+        console.log('[custom] fetch ok, willDue(prev-落盘)=', willDue,
+            '距上次落盘=', Math.round((Date.now() - bucketBefore._updatedAt) / 1000), 's, 节流间隔=', INDEX_REFRESH_SECONDS, 's');
         // 半小时节流落盘 prev
-        persistIndexPrevIfDue('custom', snapshotIndexPrice(result.data));
+        var updated = persistIndexPrevIfDue('custom', snapshotIndexPrice(result.data));
+        console.log('[custom] persistIndexPrevIfDue 返回:', updated);
         renderCustomIndex();
     } catch (e) {
         // 非交易时段拉取失败属正常，渲染缓存即可
