@@ -942,7 +942,7 @@ function updateIndexUI(id, data) {
     v.classList.add(cls);
     c.classList.add(cls);
     // 半小时对比箭头：跟价格绑定,内部读 prev 价格快照
-    var prev = (getIndexPrevPct().market || {})[id];
+    var prev = readIndexPrevBucket('market').data[id];
     var arrow = trendArrow(
         typeof data.priceValue === 'number' ? data.priceValue : null,
         typeof prev === 'number' ? prev : null
@@ -1339,6 +1339,13 @@ function getIndexPrevPct() {
     } catch (e) { /* ignore */ }
     return { market: { _updatedAt: 0, data: {} }, custom: { _updatedAt: 0, data: {} } };
 }
+// DEBUG: 暴露 localStorage 原始值供排查
+window.__dumpIndexPrev = function () {
+ var raw = localStorage.getItem(INDEX_PREV_KEY);
+ console.log('=== INDEX_PREV_KEY raw localStorage ===');
+ console.log(raw);
+ try { console.log('parsed:', JSON.parse(raw)); } catch (e) { console.log('parse err:', e); }
+};
 function readIndexPrevBucket(bucket) {
     var cur = getIndexPrevPct();
     var b = cur[bucket];
