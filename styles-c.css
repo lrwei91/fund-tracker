@@ -296,6 +296,16 @@ body {
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
     line-height: 1.1;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 3px;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.index-change .trend-arrow {
+    font-size: 10px;
+    flex-shrink: 0;
 }
 
 .index-change.positive { color: var(--red); }

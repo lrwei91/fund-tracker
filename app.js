@@ -48,6 +48,10 @@ const CUSTOM_INDEX_QUOTE_CACHE_KEY = 'fund_tracker_custom_index_quote_cache';
 const CUSTOM_INDEX_UPDATE_TIME_KEY = 'fund_tracker_custom_index_update_time';
 const CUSTOM_INDEX_MAX = 4;
 const WATCHLIST_COST_KEY = 'fund_tracker_watchlist_cost';
+// 大盘/自选指数:每 30 分钟刷新一次的 prev 快照,用来画 trend-arrow
+// 结构: { market: { id: changePercent }, custom: { code: changePercent } }
+const INDEX_PREV_KEY = 'fund_tracker_index_prev_pct';
+const INDEX_REFRESH_SECONDS = 1800;
 
 // 实时数据缓存
 let liveIndexData = null;
@@ -937,6 +941,20 @@ function updateIndexUI(id, data) {
     var cls = data.changePercent > 0 ? 'positive' : data.changePercent < 0 ? 'negative' : 'neutral';
     v.classList.add(cls);
     c.classList.add(cls);
+    // 半小时对比箭头：内部读 prev 快照,不依赖调用方传参
+    var prev = (getIndexPrevPct().market || {})[id];
+    var arrow = trendArrow(
+        typeof data.changePercent === 'number' ? data.changePercent : null,
+        typeof prev === 'number' ? prev : null
+    );
+    var existing = c.querySelector('.trend-arrow');
+    if (existing) existing.remove();
+    if (arrow) {
+        var span = document.createElement('span');
+        span.className = 'trend-arrow';
+        span.textContent = arrow;
+        c.appendChild(span);
+    }
 }
 
 async function loadIndexData() {
@@ -959,10 +977,24 @@ async function loadIndexData() {
         liveIndexData = result.data;
         writeTimedCache(SHORT_CACHE_KEYS.index, result.data);
         Object.keys(result.data).forEach(function (id) { updateIndexUI(id, result.data[id]); });
+        // 半小时节流:刷新节奏不变,只决定 prev 落盘的节奏
+        persistIndexPrevIfDue('market', snapshotIndexChangePct(result.data));
         setLastUpdated('行情已更新');
     } catch (e) {
         if (!liveIndexData) setLastUpdated('行情获取失败');
     }
+}
+
+function snapshotIndexChangePct(data) {
+    var out = {};
+    if (!data || typeof data !== 'object') return out;
+    Object.keys(data).forEach(function (id) {
+        var d = data[id];
+        if (d && typeof d.changePercent === 'number' && Number.isFinite(d.changePercent)) {
+            out[id] = d.changePercent;
+        }
+    });
+    return out;
 }
 
 // ---------- 资金流向 ----------
@@ -1281,6 +1313,62 @@ function persistCurrentChangePct() {
         if (d && typeof d.changePercent === 'number') map[code] = d.changePercent;
     });
     savePrevChangePct(map);
+}
+
+// 大盘 / 自选指数的 prev 快照(半小时对比基准)
+// 结构:{ market: { _updatedAt, data: { id: pct } }, custom: { _updatedAt, data: { code: pct } } }
+// _updatedAt 决定落盘节流:距上次落盘 < 30 分钟时,prev 保持原值(箭头语义=和上半小时比)
+function getIndexPrevPct() {
+    try {
+        var raw = JSON.parse(localStorage.getItem(INDEX_PREV_KEY));
+        if (raw && typeof raw === 'object') return raw;
+    } catch (e) { /* ignore */ }
+    return { market: { _updatedAt: 0, data: {} }, custom: { _updatedAt: 0, data: {} } };
+}
+function readIndexPrevBucket(bucket) {
+    var cur = getIndexPrevPct();
+    var b = cur[bucket];
+    if (!b || typeof b !== 'object') return { _updatedAt: 0, data: {} };
+    return {
+        _updatedAt: typeof b._updatedAt === 'number' ? b._updatedAt : 0,
+        data: b.data && typeof b.data === 'object' ? b.data : {},
+    };
+}
+// 仅当距上次落盘 ≥ INDEX_REFRESH_SECONDS 秒时,才把 currentMap 写入 bucket.data 并刷新 _updatedAt
+function persistIndexPrevIfDue(bucket, currentMap, now) {
+    var bucketObj = readIndexPrevBucket(bucket);
+    var nowMs = typeof now === 'number' ? now : Date.now();
+    var due = (nowMs - bucketObj._updatedAt) >= INDEX_REFRESH_SECONDS * 1000;
+    if (!due) return false;
+    var cleanData = {};
+    Object.keys(currentMap || {}).forEach(function (k) {
+        var v = currentMap[k];
+        if (typeof v === 'number' && Number.isFinite(v)) cleanData[k] = v;
+    });
+    var cur = getIndexPrevPct();
+    cur[bucket] = { _updatedAt: nowMs, data: cleanData };
+    try { localStorage.setItem(INDEX_PREV_KEY, JSON.stringify(cur)); } catch (e) {}
+    return true;
+}
+// 单点写入 prev(用于新增自选指数时立刻给一个 prev,让首次渲染的箭头 = self-vs-self = '─')
+function setIndexPrevForCode(bucket, code, pct) {
+    if (typeof pct !== 'number' || !Number.isFinite(pct)) return;
+    var cur = getIndexPrevPct();
+    var b = readIndexPrevBucket(bucket);
+    b.data[code] = pct;
+    // 单点写入不动 _updatedAt,避免污染节流基准
+    cur[bucket] = b;
+    try { localStorage.setItem(INDEX_PREV_KEY, JSON.stringify(cur)); } catch (e) {}
+}
+// 移除自选指数时同步清掉 prev,避免幽灵 prev
+function clearIndexPrevForCode(bucket, code) {
+    var cur = getIndexPrevPct();
+    var b = readIndexPrevBucket(bucket);
+    if (Object.prototype.hasOwnProperty.call(b.data, code)) {
+        delete b.data[code];
+        cur[bucket] = b;
+        try { localStorage.setItem(INDEX_PREV_KEY, JSON.stringify(cur)); } catch (e) {}
+    }
 }
 function trendArrow(current, prev) {
     if (prev === undefined || prev === null) return '─';
@@ -1979,10 +2067,17 @@ function renderCustomIndexItem(code, name, price, changePercent, change) {
     var pctStr = (typeof changePercent === 'number' && Number.isFinite(changePercent) && changePercent !== 0)
         ? (changePercent > 0 ? '+' : '') + changePercent.toFixed(2) + '%'
         : '0.00%';
+    // 半小时对比箭头：跟大盘指数同语义,从 custom bucket 取 prev
+    var prev = (readIndexPrevBucket('custom').data || {})[code];
+    var arrow = trendArrow(
+        typeof changePercent === 'number' ? changePercent : null,
+        typeof prev === 'number' ? prev : null
+    );
+    var arrowHtml = arrow ? ' <span class="trend-arrow">' + escapeHtml(arrow) + '</span>' : '';
     return '<div class="index-item custom-index-data" data-code="' + escapeHtml(code) + '">' +
         '<div class="index-name">' + escapeHtml(name) + '</div>' +
         '<div class="index-value ' + cls + '">' + escapeHtml(price) + '</div>' +
-        '<div class="index-change ' + cls + '">' + escapeHtml(changeStr) + ' / ' + escapeHtml(pctStr) + '</div>' +
+        '<div class="index-change ' + cls + '">' + escapeHtml(changeStr) + ' / ' + escapeHtml(pctStr) + arrowHtml + '</div>' +
         '<button type="button" class="custom-index-remove" data-remove-custom-index="' + escapeHtml(code) + '" aria-label="删除 ' + escapeHtml(code) + '">✕</button>' +
         '</div>';
 }
@@ -2042,6 +2137,7 @@ async function addCustomIndexByInput(rawValue) {
 function removeCustomIndex(code) {
     customIndexCodes = customIndexCodes.filter(function (c) { return c !== code; });
     delete customIndexCache[code];
+    clearIndexPrevForCode('custom', code);
     saveCustomIndices();
     persistCustomIndexCache();
     renderCustomIndex();
@@ -2087,6 +2183,8 @@ async function loadCustomIndexData() {
             persistCustomIndexUpdateTime(result.time);
         }
         persistCustomIndexCache();
+        // 半小时节流落盘 prev
+        persistIndexPrevIfDue('custom', snapshotIndexChangePct(result.data));
         renderCustomIndex();
     } catch (e) {
         // 非交易时段拉取失败属正常，渲染缓存即可
@@ -2107,6 +2205,10 @@ async function loadSingleCustomIndex(code) {
             persistCustomIndexUpdateTime(result.time);
         }
         persistCustomIndexCache();
+        // 新增指数首屏拉一次时,直接给这个 code 写入 prev(等于自身,首渲染箭头为 '─')
+        if (d && typeof d.changePercent === 'number') {
+            setIndexPrevForCode('custom', code, d.changePercent);
+        }
         renderCustomIndex();
     } catch (e) { /* ignore */ }
 }
