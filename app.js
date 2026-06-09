@@ -941,19 +941,19 @@ function updateIndexUI(id, data) {
     var cls = data.changePercent > 0 ? 'positive' : data.changePercent < 0 ? 'negative' : 'neutral';
     v.classList.add(cls);
     c.classList.add(cls);
-    // 半小时对比箭头：内部读 prev 快照,不依赖调用方传参
+    // 半小时对比箭头：跟价格绑定,内部读 prev 价格快照
     var prev = (getIndexPrevPct().market || {})[id];
     var arrow = trendArrow(
-        typeof data.changePercent === 'number' ? data.changePercent : null,
+        typeof data.priceValue === 'number' ? data.priceValue : null,
         typeof prev === 'number' ? prev : null
     );
-    var existing = c.querySelector('.trend-arrow');
+    var existing = v.querySelector('.trend-arrow');
     if (existing) existing.remove();
     if (arrow) {
         var span = document.createElement('span');
         span.className = 'trend-arrow';
         span.textContent = arrow;
-        c.appendChild(span);
+        v.appendChild(span);
     }
 }
 
@@ -978,20 +978,21 @@ async function loadIndexData() {
         writeTimedCache(SHORT_CACHE_KEYS.index, result.data);
         Object.keys(result.data).forEach(function (id) { updateIndexUI(id, result.data[id]); });
         // 半小时节流:刷新节奏不变,只决定 prev 落盘的节奏
-        persistIndexPrevIfDue('market', snapshotIndexChangePct(result.data));
+        persistIndexPrevIfDue('market', snapshotIndexPrice(result.data));
         setLastUpdated('行情已更新');
     } catch (e) {
         if (!liveIndexData) setLastUpdated('行情获取失败');
     }
 }
 
-function snapshotIndexChangePct(data) {
+function snapshotIndexPrice(data) {
+    // 抽出 { key: priceValue } 快照,trend-arrow 用价格本身做对比基准
     var out = {};
     if (!data || typeof data !== 'object') return out;
     Object.keys(data).forEach(function (id) {
         var d = data[id];
-        if (d && typeof d.changePercent === 'number' && Number.isFinite(d.changePercent)) {
-            out[id] = d.changePercent;
+        if (d && typeof d.priceValue === 'number' && Number.isFinite(d.priceValue)) {
+            out[id] = d.priceValue;
         }
     });
     return out;
@@ -2067,17 +2068,19 @@ function renderCustomIndexItem(code, name, price, changePercent, change) {
     var pctStr = (typeof changePercent === 'number' && Number.isFinite(changePercent) && changePercent !== 0)
         ? (changePercent > 0 ? '+' : '') + changePercent.toFixed(2) + '%'
         : '0.00%';
-    // 半小时对比箭头：跟大盘指数同语义,从 custom bucket 取 prev
+    // 半小时对比箭头：跟大盘指数一致,挂在价格后面,从 custom bucket 取 prev 价格
+    var cached = customIndexCache[code];
+    var priceValue = cached && typeof cached.priceValue === 'number' ? cached.priceValue : null;
     var prev = (readIndexPrevBucket('custom').data || {})[code];
     var arrow = trendArrow(
-        typeof changePercent === 'number' ? changePercent : null,
+        priceValue,
         typeof prev === 'number' ? prev : null
     );
     var arrowHtml = arrow ? ' <span class="trend-arrow">' + escapeHtml(arrow) + '</span>' : '';
     return '<div class="index-item custom-index-data" data-code="' + escapeHtml(code) + '">' +
         '<div class="index-name">' + escapeHtml(name) + '</div>' +
-        '<div class="index-value ' + cls + '">' + escapeHtml(price) + '</div>' +
-        '<div class="index-change ' + cls + '">' + escapeHtml(changeStr) + ' / ' + escapeHtml(pctStr) + arrowHtml + '</div>' +
+        '<div class="index-value ' + cls + '">' + escapeHtml(price) + arrowHtml + '</div>' +
+        '<div class="index-change ' + cls + '">' + escapeHtml(changeStr) + ' / ' + escapeHtml(pctStr) + '</div>' +
         '<button type="button" class="custom-index-remove" data-remove-custom-index="' + escapeHtml(code) + '" aria-label="删除 ' + escapeHtml(code) + '">✕</button>' +
         '</div>';
 }
@@ -2184,7 +2187,7 @@ async function loadCustomIndexData() {
         }
         persistCustomIndexCache();
         // 半小时节流落盘 prev
-        persistIndexPrevIfDue('custom', snapshotIndexChangePct(result.data));
+        persistIndexPrevIfDue('custom', snapshotIndexPrice(result.data));
         renderCustomIndex();
     } catch (e) {
         // 非交易时段拉取失败属正常，渲染缓存即可
@@ -2206,8 +2209,8 @@ async function loadSingleCustomIndex(code) {
         }
         persistCustomIndexCache();
         // 新增指数首屏拉一次时,直接给这个 code 写入 prev(等于自身,首渲染箭头为 '─')
-        if (d && typeof d.changePercent === 'number') {
-            setIndexPrevForCode('custom', code, d.changePercent);
+        if (d && typeof d.priceValue === 'number') {
+            setIndexPrevForCode('custom', code, d.priceValue);
         }
         renderCustomIndex();
     } catch (e) { /* ignore */ }
