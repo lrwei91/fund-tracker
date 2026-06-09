@@ -51,7 +51,7 @@ const WATCHLIST_COST_KEY = 'fund_tracker_watchlist_cost';
 // 大盘/自选指数:每 30 分钟刷新一次的 prev 快照,用来画 trend-arrow
 // 结构: { market: { id: changePercent }, custom: { code: changePercent } }
 const INDEX_PREV_KEY = 'fund_tracker_index_prev_pct';
-const INDEX_REFRESH_SECONDS = 1800;
+const INDEX_REFRESH_SECONDS = 300;
 
 // 实时数据缓存
 let liveIndexData = null;
