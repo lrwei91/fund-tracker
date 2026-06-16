@@ -273,6 +273,9 @@ body {
     margin-bottom: 2px;
     font-weight: 500;
     letter-spacing: 0.3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .index-value {
@@ -440,14 +443,7 @@ body {
     cursor: wait;
 }
 
-.custom-index-status {
-    font-size: 11px;
-    color: var(--text-tertiary);
-    margin-bottom: 6px;
-    min-height: 14px;
-}
-
-.custom-index-status.error { color: var(--red); }
+/* .custom-index-status 旧的内嵌提示条已废弃,统一改用顶部 alert-toast 弹窗 */
 
 /* ---------- 自选股 ---------- */
 .watchlist-toolbar {
@@ -1850,6 +1846,7 @@ body {
 
 .alert-toast.alert-up { border-left-color: var(--green); }
 .alert-toast.alert-down { border-left-color: var(--red); }
+.alert-toast.alert-info { border-left-color: var(--text-secondary); }
 
 .alert-toast.removing {
     animation: alert-toast-out 0.2s ease-in forwards;

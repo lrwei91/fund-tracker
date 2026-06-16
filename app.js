@@ -1484,10 +1484,7 @@ function getExportPayload() {
 }
 
 function showDataStatus(message, type) {
-    var el = document.getElementById('data-status');
-    if (!el) return;
-    el.textContent = message;
-    el.className = 'watchlist-status data-status' + (type === 'error' ? ' error' : '');
+    showStatusToast(message, type);
 }
 
 function exportWatchlistData() {
@@ -1757,19 +1754,7 @@ function removeStockFromWatchlist(code) {
 }
 
 function showWatchStatus(msg, type) {
-    var grid = document.getElementById('watchlist-grid');
-    if (!grid) return;
-    var section = grid.closest('.watchlist-section');
-    var scope = section || document;
-    var el = scope.querySelector(':scope > .card-body > .watchlist-status, :scope > .watchlist-status');
-    if (!el) {
-        el = document.createElement('div');
-        el.className = 'watchlist-status';
-        (section || grid.parentNode).appendChild(el);
-    }
-    el.textContent = msg;
-    el.className = 'watchlist-status' + (type === 'error' ? ' error' : '');
-    setTimeout(function () { if (el.textContent === msg) { el.textContent = ''; el.className = 'watchlist-status'; } }, 2500);
+    showStatusToast(msg, type);
 }
 
 function getAllWatchCodes() {
@@ -2155,23 +2140,7 @@ function removeCustomIndex(code) {
 }
 
 function showCustomIndexStatus(msg, type) {
-    var el = document.querySelector('.custom-index-status');
-    if (!el) {
-        var section = document.querySelector('.custom-index-section');
-        if (!section) return;
-        el = document.createElement('div');
-        el.className = 'custom-index-status';
-        var body = section.querySelector('.card-body');
-        if (body) body.insertBefore(el, body.firstChild);
-    }
-    el.textContent = msg;
-    el.className = 'custom-index-status' + (type === 'error' ? ' error' : '');
-    setTimeout(function () {
-        if (el.textContent === msg) {
-            el.textContent = '';
-            el.className = 'custom-index-status';
-        }
-    }, 2500);
+    showStatusToast(msg, type);
 }
 
 async function loadCustomIndexData() {
@@ -2429,6 +2398,64 @@ function removeAlertToast(toast, immediate) {
     setTimeout(function () {
         if (toast.parentNode) toast.parentNode.removeChild(toast);
     }, 200);
+}
+
+// 通用 status 弹窗：复用 alert-toast 容器和样式,但不带涨跌方向/价格字段。
+// 用于 showDataStatus / showWatchStatus / showCustomIndexStatus 等所有"操作反馈"提示。
+const STATUS_TOAST_TTL_MS = 2500;
+function showStatusToast(message, type) {
+    var container = document.getElementById('alert-toast-container');
+    if (!container) return;
+    if (!message) return;
+
+    // 限制最大条数,超过则移除最早(与告警 toast 共用同一容器,故用 alert-toast 的上限)
+    while (container.children.length >= ALERT_TOAST_MAX) {
+        var first = container.firstChild;
+        if (!first) break;
+        removeAlertToast(first, true);
+    }
+
+    var variant = type === 'error' ? 'alert-down' : 'alert-info';
+    var timeText = new Date().toLocaleTimeString('zh-CN', {
+        timeZone: 'Asia/Shanghai',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+    });
+
+    var toast = document.createElement('div');
+    toast.className = 'alert-toast ' + variant;
+
+    var main = document.createElement('div');
+    main.className = 'alert-toast-main';
+
+    var title = document.createElement('div');
+    title.className = 'alert-toast-title';
+    var textSpan = document.createElement('span');
+    textSpan.className = 'alert-toast-name';
+    textSpan.textContent = message;
+    title.appendChild(textSpan);
+
+    var timeDiv = document.createElement('div');
+    timeDiv.className = 'alert-toast-time';
+    timeDiv.textContent = timeText;
+
+    main.appendChild(title);
+    main.appendChild(timeDiv);
+
+    var closeBtn = document.createElement('button');
+    closeBtn.className = 'alert-toast-close';
+    closeBtn.setAttribute('aria-label', '关闭');
+    closeBtn.textContent = '✕';
+    closeBtn.addEventListener('click', function () { removeAlertToast(toast); });
+
+    toast.appendChild(main);
+    toast.appendChild(closeBtn);
+
+    var timerId = setTimeout(function () { removeAlertToast(toast); }, STATUS_TOAST_TTL_MS);
+    toast.__alertTimer = timerId;
+
+    container.appendChild(toast);
 }
 
 // ---------- 财经新闻（金十源）----------
