@@ -1,16 +1,4 @@
 /* ================================================================
-   ⚠️ DEPRECATED — 请勿修改本文件
-   ================================================================
-   主样式表是 styles-c.css（被 index.html 引用）。
-   本文件保留是为了不破坏外部链接 / git 历史。
-   所有样式调整请改 styles-c.css。
-
-   历史：
-   - 早期版本的主样式
-   - f49f052 重构时被替换为 styles-c.css
-   ================================================================ */
-
-/* ================================================================
    市场行情 — Bloomberg Terminal Dark Design System
    极致信息密度 · 零圆角 · 等宽数据 · 专业交易终端
    ================================================================ */
@@ -23,9 +11,9 @@
     --bg-elevated: #111111;
     --bg-input: #0a0a0a;
     --bg-header: #080808;
-    --text-primary: #cccccc;
-    --text-secondary: #888888;
-    --text-tertiary: #555555;
+    --text-primary: #dde7f0;
+    --text-secondary: #a8b4c2;
+    --text-tertiary: #7a8a9c;
     --amber: #ffab00;
     --amber-dim: rgba(255, 171, 0, 0.12);
     --amber-soft: #c68400;
@@ -82,7 +70,7 @@ body {
 }
 
 .header-left h1 {
-    font-size: 22px;
+    font-size: 17px;
     font-weight: 700;
     letter-spacing: 0.5px;
     color: var(--amber);
@@ -91,7 +79,7 @@ body {
 
 .header-subtitle {
     color: var(--text-tertiary);
-    font-size: 12px;
+    font-size: 11px;
     font-family: var(--mono);
     line-height: 1;
     white-space: nowrap;
@@ -210,7 +198,7 @@ body {
 }
 
 .card-header h2 {
-    font-size: 18px;
+    font-size: 14px;
     font-weight: 700;
     color: var(--amber);
     text-transform: uppercase;
@@ -264,10 +252,11 @@ body {
 
 .index-item {
     background: transparent;
-    padding: 8px 8px 7px;
+    padding: 7px 7px 6px;
     text-align: left;
     border-right: 1px solid var(--border);
     border-bottom: 1px solid var(--border);
+    min-width: 0;
 }
 
 .index-item:nth-child(4n) {
@@ -279,20 +268,33 @@ body {
 }
 
 .index-name {
-    font-size: 14px;
+    font-size: 11px;
     color: var(--text-tertiary);
     margin-bottom: 2px;
     font-weight: 500;
     letter-spacing: 0.3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .index-value {
-    font-size: 28px;
+    font-size: 17px;
     font-weight: 700;
     font-family: var(--mono);
     letter-spacing: -0.5px;
     font-variant-numeric: tabular-nums;
     line-height: 1.2;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    max-width: 100%;
+}
+
+.index-value .trend-arrow {
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
 }
 
 .index-value.positive { color: var(--red); }
@@ -300,16 +302,148 @@ body {
 .index-value.neutral  { color: var(--text-primary); }
 
 .index-change {
-    font-size: 15px;
+    font-size: 11px;
     font-weight: 600;
     margin-top: 1px;
     font-family: var(--mono);
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    line-height: 1.1;
 }
 
 .index-change.positive { color: var(--red); }
 .index-change.negative { color: var(--green); }
 .index-change.neutral  { color: var(--text-tertiary); }
+
+/* ---------- 自选指数（板块/ETF，4 个 slot） ---------- */
+.custom-index-section .card-header {
+    padding: 8px 14px 4px;
+}
+
+.custom-index-section .card-body {
+    padding: 0 0 6px;
+}
+
+.custom-index-header-time {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin-right: auto;
+    margin-left: 8px;
+    font-family: var(--mono);
+    white-space: nowrap;
+}
+
+/* 占用一个 grid 位置的"+"添加按钮 */
+.custom-index-add {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 56px;
+    border: 1px dashed var(--border-card);
+    color: var(--text-tertiary);
+    background: transparent;
+    cursor: pointer;
+    font-family: var(--font);
+    font-size: 13px;
+    gap: 2px;
+    transition: all 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.custom-index-add:hover {
+    border-color: var(--amber);
+    color: var(--amber);
+    background: var(--amber-dim);
+}
+
+.custom-index-add .add-icon {
+    font-size: 18px;
+    line-height: 1;
+    font-weight: 300;
+}
+
+.custom-index-add .add-hint {
+    font-size: 10px;
+    opacity: 0.8;
+    letter-spacing: 0.3px;
+}
+
+/* 自选指数已填项：复用 .index-item 布局，叠加删除按钮 */
+.custom-index-data {
+    position: relative;
+}
+
+.custom-index-data .custom-index-remove {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 999px;
+    border: none;
+    background: rgba(0, 0, 0, 0.35);
+    color: var(--text-tertiary);
+    font-size: 10px;
+    line-height: 1;
+    cursor: pointer;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.custom-index-data:hover .custom-index-remove {
+    display: flex;
+}
+
+.custom-index-data .custom-index-remove:hover {
+    background: var(--red-bg);
+    color: var(--red);
+}
+
+/* 添加股票输入弹层（在卡片标题旁） */
+.custom-index-add-form {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.custom-index-add-form input {
+    flex: 1;
+    padding: 6px 10px;
+    border: 1px solid var(--border-card);
+    border-radius: var(--radius-xs);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-size: 12px;
+    font-family: var(--font);
+    outline: none;
+}
+
+.custom-index-add-form input:focus {
+    border-color: var(--amber);
+}
+
+.custom-index-add-form button {
+    padding: 6px 12px;
+    border: none;
+    border-radius: var(--radius-xs);
+    background: var(--amber);
+    color: #111827;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: var(--font);
+}
+
+.custom-index-add-form button:disabled {
+    opacity: 0.5;
+    cursor: wait;
+}
+
+/* .custom-index-status 旧的内嵌提示条已废弃,统一改用顶部 alert-toast 弹窗 */
 
 /* ---------- 自选股 ---------- */
 .watchlist-toolbar {
@@ -447,25 +581,41 @@ body {
 .add-btn:disabled { cursor: wait; opacity: 0.4; }
 
 /* Column headers — table-style */
+/* 关键：让"价格/涨跌幅/操作"列在持仓股和非持仓股 tab 下位置和宽度完全一致
+   只在"成本价"列和 1fr 区域有差异，避免切换时整张表"抖"一下
+   列宽定义：4 列 [1fr, 64, 84, 26] / 5 列 [1fr, 64(cost), 64(price), 84(change), 26]
+   gap 一律 12px（之前 4 列 16/5 列 12 也是抖动源头） */
 .watchlist-header-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 100px 110px 28px;
+    grid-template-columns: minmax(0, 1fr) 64px 84px 26px;
     align-items: center;
-    padding: 10px 18px;
+    padding: 7px 14px;
     color: var(--text-tertiary);
-    font-size: 12px;
+    font-size: 10px;
     font-weight: 700;
     font-family: var(--mono);
-    gap: 20px;
+    gap: 12px;
     letter-spacing: 0.8px;
     text-transform: uppercase;
     border-bottom: 1px solid var(--border-strong);
     border-top: 1px solid var(--border);
     background: var(--bg-row);
-    margin: 0 -18px;
+    margin: 0 -14px;
+}
+
+.watchlist-header-row.with-cost {
+    grid-template-columns: minmax(0, 1fr) 64px 64px 84px 26px;
 }
 
 .watchlist-header-name { }
+.watchlist-header-cost {
+    display: none;
+    text-align: left;
+    padding-left: 8px;
+}
+.watchlist-header-row.with-cost .watchlist-header-cost {
+    display: block;
+}
 .watchlist-header-price {
     text-align: right;
 }
@@ -480,7 +630,7 @@ body {
 .watchlist-grid {
     display: grid;
     gap: 0;
-    margin: 0 -18px;
+    margin: 0 -14px;
 }
 
 .watchlist-empty {
@@ -494,12 +644,16 @@ body {
 .watchlist-item {
     background: transparent;
     border-bottom: 1px solid var(--border);
-    padding: 14px 18px;
+    padding: 10px 14px;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 100px 110px 28px;
+    grid-template-columns: minmax(0, 1fr) 64px 84px 26px;
     align-items: center;
-    gap: 20px;
+    gap: 12px;
     border-radius: 0;
+}
+
+.watchlist-grid.with-cost .watchlist-item {
+    grid-template-columns: minmax(0, 1fr) 64px 64px 84px 26px;
 }
 
 .watchlist-item:nth-child(even) {
@@ -518,18 +672,18 @@ body {
 }
 
 .watchlist-stock-name {
-    font-size: 18px;
+    font-size: 15px;
     font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    line-height: 1.2;
+    line-height: 1;
     flex-shrink: 1;
     min-width: 0;
 }
 
 .watchlist-stock-code {
-    font-size: 13px;
+    font-size: 11px;
     color: var(--text-tertiary);
     font-family: var(--mono);
     flex-shrink: 0;
@@ -537,7 +691,7 @@ body {
 }
 
 .watchlist-stock-price {
-    font-size: 22px;
+    font-size: 17px;
     font-weight: 700;
     font-family: var(--mono);
     letter-spacing: -0.3px;
@@ -552,7 +706,7 @@ body {
 
 /* Change % — colored bar background */
 .watchlist-stock-change {
-    font-size: 17px;
+    font-size: 14px;
     font-weight: 700;
     font-family: var(--mono);
     text-align: right;
@@ -579,6 +733,212 @@ body {
 .watchlist-stock-change.neutral {
     color: var(--text-tertiary);
     background: rgba(255,255,255,0.03);
+}
+
+/* 成本价列：上下两行（成本价 + 盈亏值） */
+.watchlist-stock-cost {
+    text-align: left;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.15;
+    white-space: nowrap;
+}
+
+.watchlist-stock-cost .cost-value {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.watchlist-stock-cost .cost-value.empty {
+    color: var(--text-tertiary);
+    font-weight: 500;
+}
+
+.watchlist-stock-cost .cost-pnl {
+    font-size: 11px;
+    font-weight: 600;
+    margin-top: 1px;
+    color: var(--text-tertiary);
+}
+
+.watchlist-stock-cost .cost-pnl.positive { color: var(--red); }
+.watchlist-stock-cost .cost-pnl.negative { color: var(--green); }
+
+/* 标题右侧"编辑/保存"切换按钮（默认编辑，展开后变成高亮保存态） */
+.watchlist-edit-btn {
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-xs);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 8px;
+    margin-left: 6px;
+    cursor: pointer;
+    font-family: var(--font);
+    -webkit-tap-highlight-color: transparent;
+    transition: all 0.15s;
+    text-align: center;
+    line-height: 1.5;
+    /* 默认 visible（HTML 加载即可见），候选股 tab 由 JS 改 hidden
+       用 visibility 而非 display: none，避免按钮隐藏/显示时把 card-header 行高
+       压缩/撑高，导致下方 .watchlist-item 整体跳动 */
+}
+
+.watchlist-edit-btn:hover {
+    border-color: var(--amber);
+    color: var(--amber);
+}
+
+/* "保存"态：金色填充，视觉上像主操作按钮 */
+.watchlist-edit-btn.active {
+    background: var(--amber);
+    border-color: var(--amber);
+    color: #111827;
+}
+
+.watchlist-edit-btn.active:hover {
+    background: var(--amber);
+    color: #111827;
+    opacity: 0.9;
+}
+
+.watchlist-edit-btn:hover {
+    border-color: var(--amber);
+    color: var(--amber);
+}
+
+/* "保存"态：金色填充，视觉上像主操作按钮 */
+.watchlist-edit-btn.active {
+    background: var(--amber);
+    border-color: var(--amber);
+    color: #111827;
+}
+
+.watchlist-edit-btn.active:hover {
+    background: var(--amber);
+    color: #111827;
+    opacity: 0.9;
+}
+
+/* 编辑面板：逐行填成本价/股数 */
+.watchlist-edit-panel {
+    margin: 8px -14px 10px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--amber);
+    border-radius: var(--radius-sm);
+    padding: 0;
+    overflow: hidden;
+}
+
+.watchlist-edit-panel[hidden] { display: none; }
+
+.watchlist-edit-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 8px 12px;
+    background: var(--amber-dim);
+    border-bottom: 1px solid var(--border-card);
+    letter-spacing: 0.3px;
+}
+
+.watchlist-edit-panel-title {
+    color: var(--text-primary);
+}
+
+.watchlist-edit-panel-hint {
+    color: var(--amber);
+    font-size: 10px;
+}
+
+.watchlist-edit-rows {
+    display: grid;
+    gap: 0;
+    padding: 4px 0;
+}
+
+.watchlist-edit-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 80px 80px;
+    gap: 8px;
+    align-items: center;
+    padding: 4px 12px;
+}
+
+.watchlist-edit-row + .watchlist-edit-row {
+    border-top: 1px solid var(--border-subtle);
+}
+
+.watchlist-edit-row-name {
+    font-size: 12px;
+    color: var(--text-primary);
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+}
+
+.watchlist-edit-row-name .edit-row-code {
+    color: var(--text-tertiary);
+    font-size: 10px;
+    font-family: var(--mono);
+    flex-shrink: 0;
+}
+
+.watchlist-edit-row-field {
+    position: relative;
+}
+
+.watchlist-edit-row-field-label {
+    position: absolute;
+    top: 50%;
+    left: 6px;
+    transform: translateY(-50%);
+    font-size: 9px;
+    color: var(--text-tertiary);
+    font-family: var(--font);
+    pointer-events: none;
+    letter-spacing: 0.3px;
+}
+
+.watchlist-edit-row input {
+    padding: 5px 7px;
+    border: 1px solid var(--border-card);
+    border-radius: var(--radius-xs);
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    font-size: 12px;
+    font-family: var(--mono);
+    text-align: right;
+    outline: none;
+    min-width: 0;
+    width: 100%;
+    /* 移除 number input 原生上下调节器（spinner） */
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+.watchlist-edit-row input::-webkit-outer-spin-button,
+.watchlist-edit-row input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.watchlist-edit-row input:focus {
+    border-color: var(--amber);
+}
+
+.watchlist-edit-row input::placeholder {
+    color: var(--text-tertiary);
+    font-family: var(--font);
 }
 
 .trend-arrow {
@@ -640,7 +1000,7 @@ body {
 }
 
 .capital-label {
-    font-size: 14px;
+    font-size: 11px;
     color: var(--text-tertiary);
     margin-bottom: 4px;
     font-weight: 600;
@@ -650,7 +1010,7 @@ body {
 }
 
 .capital-value {
-    font-size: 32px;
+    font-size: 18px;
     font-weight: 700;
     font-family: var(--mono);
     letter-spacing: -0.5px;
@@ -680,7 +1040,7 @@ body {
     border-radius: 0;
     background: transparent;
     color: var(--text-tertiary);
-    font-size: 15px;
+    font-size: 12px;
     font-weight: 700;
     font-family: var(--mono);
     cursor: pointer;
@@ -1017,23 +1377,53 @@ body {
 .hot-sector { background: rgba(255, 23, 68, 0.04) !important; }
 .cold-sector { background: rgba(0, 230, 118, 0.04) !important; }
 
-/* ---------- 财经新闻 — Compact ---------- */
-.news-list { }
+/* ---------- 财经新闻 — 瀑布流分页 ---------- */
+.news-list {
+    column-count: 1;
+    column-gap: 10px;
+}
 
-.news-empty {
+.news-item {
+    padding: 8px 10px;
+    margin-bottom: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-row);
+    break-inside: avoid;
+    -webkit-column-break-inside: avoid;
+    page-break-inside: avoid;
+    display: inline-block; /* multi-column 兼容 */
+    width: 100%;
+    box-sizing: border-box;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.news-status {
     text-align: center;
     padding: 14px 8px;
     color: var(--text-tertiary);
     font-size: 11px;
     font-family: var(--mono);
+    break-inside: avoid;
 }
-
-.news-item {
-    padding: 8px 0;
-    border-bottom: 1px solid var(--border);
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
+.news-status.news-loading::before {
+    content: '';
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    margin-right: 6px;
+    border: 1.5px solid var(--text-tertiary);
+    border-top-color: transparent;
+    border-radius: 50%;
+    vertical-align: -1px;
+    animation: news-spin 0.8s linear infinite;
 }
+@keyframes news-spin {
+    to { transform: rotate(360deg); }
+}
+.news-status.news-error { color: var(--red); }
+.news-status.news-loadend { color: var(--text-tertiary); opacity: 0.6; }
+.news-status.news-loadmore { color: var(--text-secondary); }
 
 .news-item:last-child { border-bottom: none; }
 .news-item:active {
@@ -1052,7 +1442,7 @@ body {
 }
 
 .news-title {
-    font-size: 19px;
+    font-size: 14px;
     font-weight: 600;
     line-height: 1.35;
     flex: 1;
@@ -1345,25 +1735,25 @@ body {
     body { padding: 0; }
 
     #main-content {
-        max-width: 720px;
+        max-width: 760px;
         width: 100%;
         margin: 0 auto;
     }
 
     .header {
-        max-width: 720px;
+        max-width: 760px;
         width: 100%;
         margin: 0 auto;
     }
 
     .tab-bar {
-        max-width: 720px;
+        max-width: 760px;
         width: 100%;
         margin: 0 auto;
     }
 
     .footer {
-        max-width: 720px;
+        max-width: 760px;
         margin: 0 auto;
     }
 
@@ -1373,7 +1763,7 @@ body {
     .watchlist-item:hover { background: var(--bg-row) !important; }
     .tab-btn:hover:not(.active) { color: var(--text-secondary); background: rgba(255, 171, 0, 0.03); }
     .card-header:hover { background: var(--bg-elevated); }
-    .news-item:hover { background: var(--bg-row); }
+    .news-item:hover { background: var(--bg-row-alt); border-color: var(--border-strong); }
     .sector-tab:hover:not(.active) { color: var(--text-secondary); }
     .news-source-tab:hover:not(.active) { color: var(--text-secondary); }
 }
@@ -1395,8 +1785,13 @@ body {
 
     .watchlist-header-row,
     .watchlist-item {
-        grid-template-columns: minmax(0, 1fr) 64px 66px 24px;
-        gap: 8px;
+        grid-template-columns: minmax(0, 1fr) 48px 64px 18px;
+        gap: 6px;
+    }
+
+    .watchlist-header-row.with-cost,
+    .watchlist-grid.with-cost .watchlist-item {
+        grid-template-columns: minmax(0, 1fr) 48px 48px 64px 18px;
     }
 
     .watchlist-stock-price { font-size: 12px; }
@@ -1405,13 +1800,16 @@ body {
         padding: 2px 4px;
     }
     .watchlist-stock-name { font-size: 12px; }
+    .watchlist-stock-cost .cost-value { font-size: 11px; }
+    .watchlist-stock-cost .cost-pnl { font-size: 9px; }
 }
 
-@media (min-width: 1024px) {
-    #main-content { max-width: 1080px; }
-    .header { max-width: 1080px; }
-    .tab-bar { max-width: 1080px; }
-    .footer { max-width: 1080px; }
+@media (min-width: 1280px) {
+    #main-content { max-width: 920px; }
+    .header { max-width: 920px; }
+    .tab-bar { max-width: 920px; }
+    .footer { max-width: 920px; }
+    .news-list { column-count: 2; }
 }
 
 /* ---------- Alert Toast (涨跌幅告警) ---------- */
@@ -1448,6 +1846,7 @@ body {
 
 .alert-toast.alert-up { border-left-color: var(--green); }
 .alert-toast.alert-down { border-left-color: var(--red); }
+.alert-toast.alert-info { border-left-color: var(--text-secondary); }
 
 .alert-toast.removing {
     animation: alert-toast-out 0.2s ease-in forwards;

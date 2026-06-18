@@ -5,8 +5,9 @@ const path = require('path')
 const WEB_URL = 'https://fund-tracker-one.vercel.app'
 
 // 浮窗尺寸 + 默认位置（屏幕右下角）
-const WIDGET_W = 420
-const WIDGET_H = 580
+const WIDGET_W = 320
+const WIDGET_H = 58
+const WIDGET_MARGIN = 20
 
 let mainWin = null
 let holdingWin = null
@@ -14,111 +15,183 @@ let holdingWin = null
 // ============ 注入脚本：把 web 切成"持仓库浮窗模式" ============
 const FOCUS_HOLDING_WIDGET_SCRIPT = `
   (function focusWidget() {
-    // 1. 透明 body（web 本身就是深色主题，直接透出来）
-    document.documentElement.style.background = 'transparent'
-    document.body.style.cssText = 'background:transparent;margin:0;padding:0;min-height:100vh;'
+    const STYLE_ID = '__shell_holding_widget_style__'
+    const CLOSE_ID = '__shell_holding_close__'
+    const ROTATE_MS = 5000
 
-    // 2. 切到 dashboard 主 tab
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'))
-    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'))
+    document.title = '持仓浮窗'
+    document.documentElement.classList.add('shell-holding-mode')
+    document.body.classList.add('shell-holding-mode')
+
     const dashTab = document.querySelector('.tab-btn[data-tab="dashboard"]')
     const dashPanel = document.querySelector('#tab-dashboard')
-    if (dashTab) dashTab.classList.add('active')
-    if (dashPanel) dashPanel.classList.add('active')
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.toggle('active', btn === dashTab))
+    document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.toggle('active', panel === dashPanel))
 
-    // 3. 隐藏外层 chrome（header、tab-bar、footer、alert、设置面板等）
-    const hideAll = ['.header', '.tab-bar', '.footer', '.alert-toast-container',
-                     '.settings-overlay', '.settings-panel',
-                     '.data-overlay', '.data-panel']
-    hideAll.forEach(sel => {
-      document.querySelectorAll(sel).forEach(el => el.style.display = 'none')
-    })
-
-    // 4. dashboard 下只留自选股 section
-    document.querySelectorAll('#tab-dashboard > section.card').forEach(s => {
-      if (!s.classList.contains('watchlist-section')) s.style.display = 'none'
-    })
-
-    // 5. 自选股 section 内部：藏掉所有非内容元素
     const watchSection = document.querySelector('.watchlist-section')
     if (watchSection) {
       watchSection.removeAttribute('data-collapsed')
       const body = watchSection.querySelector('.card-body')
-      if (body) body.style.display = 'block'
-
-      // 按你要求：不要顶部"持仓库"行、不要"持仓股/候选股"tab、不要表头、不要其他按钮
-      const hideInside = [
-        '.card-header',              // 顶部"持仓库"标题行
-        '.watchlist-tabs',           // 持仓股/候选股 tab 容器
-        '.watchlist-tab-add',        // + 按钮（新增分组）
-        '.watchlist-add',            // 添加股票输入框
-        '.watchlist-header-row',     // 表头（股票名/股价/涨跌幅）
-        '.watchlist-status'          // 状态信息
-      ]
-      hideInside.forEach(sel => {
-        watchSection.querySelectorAll(sel).forEach(el => el.style.display = 'none')
-      })
-
-      // 强制藏删除按钮（hover 才出现）
-      const removeStyle = document.createElement('style')
-      removeStyle.textContent = '.watchlist-section .watchlist-remove-btn { display:none !important; }'
-      document.head.appendChild(removeStyle)
-
-      // 浮窗化样式：占满 + 圆角 + 阴影（用 web 自带的深色背景 #000）
-      watchSection.style.cssText += [
-        ';border-radius:14px',
-        'box-shadow:0 12px 40px rgba(0,0,0,0.5)',
-        'overflow:hidden',
-        'background:#000',
-        'margin:0',
-        'width:100%',
-        'box-sizing:border-box'
-      ].join(';')
+      if (body) {
+        body.hidden = false
+        body.style.display = 'block'
+      }
     }
 
-    // 6. 顶部加一个不可见拖动 handle（无边框窗口的拖动区）
+    if (!document.getElementById(STYLE_ID)) {
+      const style = document.createElement('style')
+      style.id = STYLE_ID
+      style.textContent = [
+        'html.shell-holding-mode, body.shell-holding-mode { background: transparent !important; margin: 0 !important; padding: 0 !important; min-height: 100vh !important; overflow: hidden !important; }',
+        'body.shell-holding-mode .header, body.shell-holding-mode .tab-bar, body.shell-holding-mode .footer, body.shell-holding-mode .alert-toast-container, body.shell-holding-mode .settings-overlay, body.shell-holding-mode .settings-panel, body.shell-holding-mode .data-overlay, body.shell-holding-mode .data-panel { display: none !important; }',
+        'body.shell-holding-mode #main-content { height: 100vh !important; margin: 0 !important; padding: 0 !important; box-sizing: border-box !important; overflow: hidden !important; }',
+        'body.shell-holding-mode .tab-panel { display: none !important; }',
+        'body.shell-holding-mode #tab-dashboard { display: block !important; height: 100% !important; }',
+        'body.shell-holding-mode #tab-dashboard > section.card { display: none !important; }',
+        'body.shell-holding-mode #tab-dashboard > section.watchlist-section { display: flex !important; flex-direction: column !important; height: 100vh !important; min-height: 0 !important; margin: 0 !important; border: 0 !important; border-radius: 10px !important; overflow: hidden !important; background: #050608 !important; box-shadow: 0 10px 30px rgba(0,0,0,.45) !important; box-sizing: border-box !important; }',
+        'body.shell-holding-mode .watchlist-section .card-header, body.shell-holding-mode .watchlist-section .watchlist-toolbar, body.shell-holding-mode .watchlist-section .watchlist-add, body.shell-holding-mode .watchlist-section .watchlist-edit-panel, body.shell-holding-mode .watchlist-section .watchlist-header-row, body.shell-holding-mode .watchlist-section .watchlist-status, body.shell-holding-mode .watchlist-section .watchlist-remove-btn { display: none !important; }',
+        'body.shell-holding-mode .watchlist-section .card-body { display: block !important; flex: 1 1 auto !important; min-height: 0 !important; padding: 0 24px 0 10px !important; overflow: hidden !important; }',
+        'body.shell-holding-mode .watchlist-grid { position: relative !important; display: block !important; height: 100% !important; margin: 0 !important; overflow: hidden !important; }',
+        'body.shell-holding-mode .watchlist-empty { height: 100% !important; display: flex !important; align-items: center !important; justify-content: center !important; padding: 0 !important; }',
+        'body.shell-holding-mode .watchlist-item { position: absolute !important; inset: 0 !important; display: grid !important; grid-template-columns: minmax(64px, 1fr) 54px 70px !important; align-items: center !important; gap: 8px !important; height: 100% !important; padding: 0 !important; border: 0 !important; background: transparent !important; opacity: 0 !important; transform: translateY(4px) !important; pointer-events: none !important; transition: opacity .22s ease, transform .22s ease !important; -webkit-app-region: no-drag !important; }',
+        'body.shell-holding-mode .watchlist-grid.with-cost .watchlist-item { grid-template-columns: minmax(64px, 1fr) 54px 70px !important; }',
+        'body.shell-holding-mode .watchlist-item.shell-active-holding { opacity: 1 !important; transform: translateY(0) !important; pointer-events: auto !important; }',
+        'body.shell-holding-mode .watchlist-stock-cost { display: none !important; }',
+        'body.shell-holding-mode .watchlist-item-main { min-width: 0 !important; display: grid !important; grid-template-columns: minmax(0, 1fr) auto !important; align-items: baseline !important; gap: 5px !important; }',
+        'body.shell-holding-mode .watchlist-stock-name { font-size: 13px !important; font-weight: 700 !important; line-height: 1 !important; min-width: 0 !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }',
+        'body.shell-holding-mode .watchlist-stock-code { font-size: 10px !important; line-height: 1 !important; color: #7b8496 !important; }',
+        'body.shell-holding-mode .watchlist-stock-price { font-size: 15px !important; font-weight: 800 !important; line-height: 1 !important; text-align: right !important; letter-spacing: 0 !important; }',
+        'body.shell-holding-mode .watchlist-stock-change { font-size: 12px !important; font-weight: 800 !important; line-height: 1 !important; padding: 3px 5px !important; justify-content: center !important; border-radius: 2px !important; }',
+        'body.shell-holding-mode .watchlist-stock-change .trend-arrow { display: none !important; }',
+        '#__shell_drag_handle__ { position: fixed; inset: 0; z-index: 2147483645; -webkit-app-region: drag; cursor: grab; }',
+        '#__shell_holding_close__ { position: fixed; top: 1px; right: 1px; z-index: 2147483647; width: 14px; height: 14px; border: 0; border-radius: 999px; background: rgba(255,255,255,.1); color: rgba(255,255,255,.58); font: 11px/14px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif; cursor: pointer; padding: 0; -webkit-app-region: no-drag; }',
+        '#__shell_holding_close__:hover { background: rgba(255,255,255,.2); color: #fff; }'
+      ].join('\\n')
+      document.head.appendChild(style)
+    }
+
+    function rotateHoldingItems() {
+      const items = Array.from(document.querySelectorAll('.watchlist-grid .watchlist-item'))
+      if (!items.length) return
+
+      let index = Number(document.body.dataset.shellHoldingIndex || '0')
+      if (!Number.isFinite(index) || index < 0 || index >= items.length) index = 0
+      items.forEach((item, i) => item.classList.toggle('shell-active-holding', i === index))
+      document.body.dataset.shellHoldingIndex = String((index + 1) % items.length)
+
+      if (items.length <= 1) return
+      if (window.__shellHoldingTicker) clearTimeout(window.__shellHoldingTicker)
+      window.__shellHoldingTicker = setTimeout(rotateHoldingItems, ROTATE_MS)
+    }
+
+    if (!document.querySelector('.watchlist-item.shell-active-holding')) {
+      rotateHoldingItems()
+    } else if (document.querySelectorAll('.watchlist-grid .watchlist-item').length > 1 && !window.__shellHoldingTicker) {
+      window.__shellHoldingTicker = setTimeout(rotateHoldingItems, ROTATE_MS)
+    }
+
     if (!document.getElementById('__shell_drag_handle__')) {
       const handle = document.createElement('div')
       handle.id = '__shell_drag_handle__'
-      handle.style.cssText = [
-        'position:fixed','top:0','left:0','right:0','height:18px',
-        'z-index:2147483647',
-        '-webkit-app-region:drag','cursor:grab'
-      ].join(';')
       document.body.appendChild(handle)
     }
 
-    document.title = '持仓库'
+    if (!document.getElementById(CLOSE_ID)) {
+      const closeBtn = document.createElement('button')
+      closeBtn.id = CLOSE_ID
+      closeBtn.type = 'button'
+      closeBtn.textContent = '×'
+      closeBtn.title = '返回主窗口'
+      closeBtn.setAttribute('aria-label', '返回主窗口')
+      closeBtn.addEventListener('click', () => {
+        if (window.shell && window.shell.closeHoldingWindow) window.shell.closeHoldingWindow()
+      })
+      document.body.appendChild(closeBtn)
+    }
+
+    return Boolean(watchSection)
   })()
 `
 
 // ============ 注入脚本：主窗口右上角浮动按钮 ============
 const INJECT_FLOAT_BTN_SCRIPT = `
   (function injectBtn() {
-    if (document.getElementById('__shell_holding_btn__')) return
-    const btn = document.createElement('div')
-    btn.id = '__shell_holding_btn__'
-    btn.innerText = '📊 持仓库'
-    btn.style.cssText = [
-      'position:fixed','top:14px','right:14px','z-index:2147483647',
-      'padding:8px 14px','background:#1677ff','color:#fff',
-      'border-radius:6px','cursor:pointer','font-size:13px',
-      'font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif',
-      'box-shadow:0 2px 10px rgba(0,0,0,0.2)','user-select:none',
-      'transition:transform .15s'
-    ].join(';')
-    btn.onmouseenter = () => btn.style.transform = 'scale(1.05)'
-    btn.onmouseleave = () => btn.style.transform = 'scale(1)'
-    btn.onclick = () => window.shell.openHoldingWindow()
-    document.body.appendChild(btn)
+    if (!window.shell || !window.shell.openHoldingWindow) return false
+    const BTN_ID = '__shell_holding_btn__'
+    let btn = document.getElementById(BTN_ID)
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.id = BTN_ID
+      btn.type = 'button'
+      btn.innerHTML = '<span class="shell-holding-icon">▣</span><span>持仓浮窗</span>'
+      btn.title = '打开持仓浮窗'
+      btn.setAttribute('aria-label', '打开持仓浮窗')
+      btn.style.cssText = [
+        'position:fixed','top:14px','right:14px','z-index:2147483647',
+        'display:inline-flex','align-items:center','gap:6px',
+        'height:34px','padding:0 12px','border:1px solid rgba(255,255,255,.14)',
+        'background:rgba(15,23,42,.92)','color:#fff','border-radius:8px',
+        'cursor:pointer','font:600 13px/1 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif',
+        'box-shadow:0 8px 28px rgba(0,0,0,.25)','user-select:none',
+        'transition:transform .15s, background .15s, opacity .15s','-webkit-app-region:no-drag'
+      ].join(';')
+      btn.onmouseenter = () => { if (!btn.disabled) btn.style.transform = 'translateY(-1px)' }
+      btn.onmouseleave = () => { btn.style.transform = 'translateY(0)' }
+      document.body.appendChild(btn)
+    }
+    btn.onclick = async () => {
+      if (btn.disabled) return
+      const old = btn.innerHTML
+      btn.disabled = true
+      btn.style.opacity = '.72'
+      btn.innerHTML = '<span>打开中…</span>'
+      try {
+        const result = await window.shell.openHoldingWindow()
+        if (!result || !result.ok) throw new Error(result && result.error ? result.error : 'open failed')
+      } catch (err) {
+        btn.innerHTML = '<span>打开失败</span>'
+        setTimeout(() => { btn.innerHTML = old }, 1200)
+      } finally {
+        btn.disabled = false
+        btn.style.opacity = '1'
+      }
+    }
+    return true
   })()
 `
 
-// 等 SPA 渲染完再注入（文档 load 完 ≠ 内部 JS 渲染完）
-function inject(win, script, delay = 1000) {
-  setTimeout(() => {
-    win.webContents.executeJavaScript(script).catch(() => {})
-  }, delay)
+function safeExecute(win, script) {
+  if (!win || win.isDestroyed()) return Promise.resolve(null)
+  return win.webContents.executeJavaScript(script).catch(() => null)
+}
+
+function injectMainButton(win) {
+  const delays = [0, 400, 1200, 2500]
+  delays.forEach((delay) => {
+    setTimeout(() => safeExecute(win, INJECT_FLOAT_BTN_SCRIPT), delay)
+  })
+}
+
+async function prepareHoldingWidget(win) {
+  if (!win || win.isDestroyed()) return false
+  for (let i = 0; i < 12; i += 1) {
+    const ready = await safeExecute(win, FOCUS_HOLDING_WIDGET_SCRIPT)
+    if (ready) return true
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  }
+  return false
+}
+
+function getWidgetBounds() {
+  const sourceWin = mainWin && !mainWin.isDestroyed() ? mainWin : BrowserWindow.getFocusedWindow()
+  const display = sourceWin ? screen.getDisplayMatching(sourceWin.getBounds()) : screen.getPrimaryDisplay()
+  const { x, y, width, height } = display.workArea
+  return {
+    x: x + width - WIDGET_W - WIDGET_MARGIN,
+    y: y + height - WIDGET_H - WIDGET_MARGIN,
+    width: WIDGET_W,
+    height: WIDGET_H,
+  }
 }
 
 // ============ 主窗口 ============
@@ -126,8 +199,8 @@ function createMainWindow() {
   mainWin = new BrowserWindow({
     width: 1280,
     height: 820,
-    title: '基金追踪',
-    backgroundColor: '#fff',
+    title: '恭喜发财',
+    backgroundColor: '#050608',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -138,24 +211,18 @@ function createMainWindow() {
 
   mainWin.loadURL(WEB_URL)
   Menu.setApplicationMenu(null)
-  mainWin.webContents.on('did-finish-load', () => {
-    inject(mainWin, INJECT_FLOAT_BTN_SCRIPT, 800)
-  })
+  mainWin.webContents.on('did-finish-load', () => injectMainButton(mainWin))
+  mainWin.webContents.on('dom-ready', () => injectMainButton(mainWin))
+  mainWin.webContents.on('did-navigate-in-page', () => injectMainButton(mainWin))
+  mainWin.on('closed', () => { mainWin = null })
 }
 
 // ============ 持仓库浮窗 ============
 function createHoldingWidget() {
   if (holdingWin && !holdingWin.isDestroyed()) return holdingWin
 
-  // 默认位置：屏幕右下角
-  const display = screen.getPrimaryDisplay()
-  const { width: sw, height: sh } = display.workAreaSize
-
   holdingWin = new BrowserWindow({
-    width: WIDGET_W,
-    height: WIDGET_H,
-    x: sw - WIDGET_W - 20,
-    y: sh - WIDGET_H - 20,
+    ...getWidgetBounds(),
     title: '持仓库',
     // 注意：不设 parent —— macOS 上 parent/child 是 window group，hide/show 会互相干扰
     frame: false,            // 无标题栏
@@ -163,6 +230,7 @@ function createHoldingWidget() {
     backgroundColor: '#00000000',
     alwaysOnTop: true,       // 置顶
     skipTaskbar: true,       // 不在 dock / win 任务栏显示
+    show: false,             // 等 DOM 切成浮窗模式后再显示，避免闪完整页面
     resizable: true,
     minimizable: false,
     maximizable: false,
@@ -178,8 +246,15 @@ function createHoldingWidget() {
   holdingWin.setMenuBarVisibility(false)
   holdingWin.loadURL(WEB_URL)
 
-  holdingWin.webContents.on('did-finish-load', () => {
-    inject(holdingWin, FOCUS_HOLDING_WIDGET_SCRIPT, 1200)
+  holdingWin.webContents.on('did-finish-load', async () => {
+    await prepareHoldingWidget(holdingWin)
+    if (holdingWin && !holdingWin.isDestroyed()) {
+      holdingWin.show()
+      holdingWin.focus()
+    }
+  })
+  holdingWin.webContents.on('dom-ready', () => {
+    prepareHoldingWidget(holdingWin)
   })
 
   // Esc 关闭浮窗（聚焦浮窗时按 Esc 才会触发）
@@ -219,18 +294,28 @@ function restoreMainWindow() {
 
 // 点击 📊 按钮：隐藏主窗口 + 显示浮窗
 function openHoldingWidget() {
-  if (mainWin && !mainWin.isDestroyed()) mainWin.hide()
-
   if (holdingWin && !holdingWin.isDestroyed()) {
+    holdingWin.setBounds(getWidgetBounds())
+    prepareHoldingWidget(holdingWin)
     if (!holdingWin.isVisible()) holdingWin.show()
     holdingWin.focus()
   } else {
-    createHoldingWidget()  // 内部会自己 show
+    createHoldingWidget()
   }
+
+  if (mainWin && !mainWin.isDestroyed()) {
+    mainWin.hide()
+  }
+
+  return { ok: true }
 }
 
 // ============ IPC ============
-ipcMain.on('open-holding-window', openHoldingWidget)
+ipcMain.handle('open-holding-window', () => openHoldingWidget())
+ipcMain.handle('close-holding-window', () => {
+  restoreMainWindow()
+  return { ok: true }
+})
 
 // ============ App 生命周期 ============
 app.whenReady().then(() => {
