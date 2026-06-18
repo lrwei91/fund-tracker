@@ -39,6 +39,7 @@ async function loadIndexes() {
         return [id, {
             name: item.name,
             value: value === null ? '--' : value.toFixed(2),
+            priceValue: value, // 数值型价格,前端 trend-arrow 用它做对比
             change: `${change > 0 ? '+' : ''}${change === null ? '--' : change.toFixed(2)} / ${formatPct(changePercent)}`,
             changePercent: changePercent || 0,
         }];

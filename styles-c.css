@@ -11,9 +11,9 @@
     --bg-elevated: #111111;
     --bg-input: #0a0a0a;
     --bg-header: #080808;
-    --text-primary: #cccccc;
-    --text-secondary: #888888;
-    --text-tertiary: #555555;
+    --text-primary: #dde7f0;
+    --text-secondary: #a8b4c2;
+    --text-tertiary: #7a8a9c;
     --amber: #ffab00;
     --amber-dim: rgba(255, 171, 0, 0.12);
     --amber-soft: #c68400;
@@ -273,6 +273,9 @@ body {
     margin-bottom: 2px;
     font-weight: 500;
     letter-spacing: 0.3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .index-value {
@@ -282,6 +285,16 @@ body {
     letter-spacing: -0.5px;
     font-variant-numeric: tabular-nums;
     line-height: 1.2;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+    max-width: 100%;
+}
+
+.index-value .trend-arrow {
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
 }
 
 .index-value.positive { color: var(--red); }
@@ -303,6 +316,14 @@ body {
 .index-change.neutral  { color: var(--text-tertiary); }
 
 /* ---------- 自选指数（板块/ETF，4 个 slot） ---------- */
+.custom-index-section .card-header {
+    padding: 8px 14px 4px;
+}
+
+.custom-index-section .card-body {
+    padding: 0 0 6px;
+}
+
 .custom-index-header-time {
     font-size: 11px;
     color: var(--text-tertiary);
@@ -318,7 +339,7 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-height: 76px;
+    min-height: 56px;
     border: 1px dashed var(--border-card);
     color: var(--text-tertiary);
     background: transparent;
@@ -331,9 +352,9 @@ body {
 }
 
 .custom-index-add:hover {
-    border-color: var(--accent);
-    color: var(--accent);
-    background: var(--accent-glow);
+    border-color: var(--amber);
+    color: var(--amber);
+    background: var(--amber-dim);
 }
 
 .custom-index-add .add-icon {
@@ -402,14 +423,14 @@ body {
 }
 
 .custom-index-add-form input:focus {
-    border-color: var(--accent);
+    border-color: var(--amber);
 }
 
 .custom-index-add-form button {
     padding: 6px 12px;
     border: none;
     border-radius: var(--radius-xs);
-    background: var(--accent);
+    background: var(--amber);
     color: #111827;
     font-size: 12px;
     font-weight: 700;
@@ -422,14 +443,7 @@ body {
     cursor: wait;
 }
 
-.custom-index-status {
-    font-size: 11px;
-    color: var(--text-tertiary);
-    margin-bottom: 6px;
-    min-height: 14px;
-}
-
-.custom-index-status.error { color: var(--red); }
+/* .custom-index-status 旧的内嵌提示条已废弃,统一改用顶部 alert-toast 弹窗 */
 
 /* ---------- 自选股 ---------- */
 .watchlist-toolbar {
@@ -567,16 +581,20 @@ body {
 .add-btn:disabled { cursor: wait; opacity: 0.4; }
 
 /* Column headers — table-style */
+/* 关键：让"价格/涨跌幅/操作"列在持仓股和非持仓股 tab 下位置和宽度完全一致
+   只在"成本价"列和 1fr 区域有差异，避免切换时整张表"抖"一下
+   列宽定义：4 列 [1fr, 64, 84, 26] / 5 列 [1fr, 64(cost), 64(price), 84(change), 26]
+   gap 一律 12px（之前 4 列 16/5 列 12 也是抖动源头） */
 .watchlist-header-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 82px 92px 26px;
+    grid-template-columns: minmax(0, 1fr) 64px 84px 26px;
     align-items: center;
     padding: 7px 14px;
     color: var(--text-tertiary);
     font-size: 10px;
     font-weight: 700;
     font-family: var(--mono);
-    gap: 16px;
+    gap: 12px;
     letter-spacing: 0.8px;
     text-transform: uppercase;
     border-bottom: 1px solid var(--border-strong);
@@ -585,7 +603,19 @@ body {
     margin: 0 -14px;
 }
 
+.watchlist-header-row.with-cost {
+    grid-template-columns: minmax(0, 1fr) 64px 64px 84px 26px;
+}
+
 .watchlist-header-name { }
+.watchlist-header-cost {
+    display: none;
+    text-align: left;
+    padding-left: 8px;
+}
+.watchlist-header-row.with-cost .watchlist-header-cost {
+    display: block;
+}
 .watchlist-header-price {
     text-align: right;
 }
@@ -616,10 +646,14 @@ body {
     border-bottom: 1px solid var(--border);
     padding: 10px 14px;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 82px 92px 26px;
+    grid-template-columns: minmax(0, 1fr) 64px 84px 26px;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
     border-radius: 0;
+}
+
+.watchlist-grid.with-cost .watchlist-item {
+    grid-template-columns: minmax(0, 1fr) 64px 64px 84px 26px;
 }
 
 .watchlist-item:nth-child(even) {
@@ -699,6 +733,212 @@ body {
 .watchlist-stock-change.neutral {
     color: var(--text-tertiary);
     background: rgba(255,255,255,0.03);
+}
+
+/* 成本价列：上下两行（成本价 + 盈亏值） */
+.watchlist-stock-cost {
+    text-align: left;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.15;
+    white-space: nowrap;
+}
+
+.watchlist-stock-cost .cost-value {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.watchlist-stock-cost .cost-value.empty {
+    color: var(--text-tertiary);
+    font-weight: 500;
+}
+
+.watchlist-stock-cost .cost-pnl {
+    font-size: 11px;
+    font-weight: 600;
+    margin-top: 1px;
+    color: var(--text-tertiary);
+}
+
+.watchlist-stock-cost .cost-pnl.positive { color: var(--red); }
+.watchlist-stock-cost .cost-pnl.negative { color: var(--green); }
+
+/* 标题右侧"编辑/保存"切换按钮（默认编辑，展开后变成高亮保存态） */
+.watchlist-edit-btn {
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-xs);
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 8px;
+    margin-left: 6px;
+    cursor: pointer;
+    font-family: var(--font);
+    -webkit-tap-highlight-color: transparent;
+    transition: all 0.15s;
+    text-align: center;
+    line-height: 1.5;
+    /* 默认 visible（HTML 加载即可见），候选股 tab 由 JS 改 hidden
+       用 visibility 而非 display: none，避免按钮隐藏/显示时把 card-header 行高
+       压缩/撑高，导致下方 .watchlist-item 整体跳动 */
+}
+
+.watchlist-edit-btn:hover {
+    border-color: var(--amber);
+    color: var(--amber);
+}
+
+/* "保存"态：金色填充，视觉上像主操作按钮 */
+.watchlist-edit-btn.active {
+    background: var(--amber);
+    border-color: var(--amber);
+    color: #111827;
+}
+
+.watchlist-edit-btn.active:hover {
+    background: var(--amber);
+    color: #111827;
+    opacity: 0.9;
+}
+
+.watchlist-edit-btn:hover {
+    border-color: var(--amber);
+    color: var(--amber);
+}
+
+/* "保存"态：金色填充，视觉上像主操作按钮 */
+.watchlist-edit-btn.active {
+    background: var(--amber);
+    border-color: var(--amber);
+    color: #111827;
+}
+
+.watchlist-edit-btn.active:hover {
+    background: var(--amber);
+    color: #111827;
+    opacity: 0.9;
+}
+
+/* 编辑面板：逐行填成本价/股数 */
+.watchlist-edit-panel {
+    margin: 8px -14px 10px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--amber);
+    border-radius: var(--radius-sm);
+    padding: 0;
+    overflow: hidden;
+}
+
+.watchlist-edit-panel[hidden] { display: none; }
+
+.watchlist-edit-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 8px 12px;
+    background: var(--amber-dim);
+    border-bottom: 1px solid var(--border-card);
+    letter-spacing: 0.3px;
+}
+
+.watchlist-edit-panel-title {
+    color: var(--text-primary);
+}
+
+.watchlist-edit-panel-hint {
+    color: var(--amber);
+    font-size: 10px;
+}
+
+.watchlist-edit-rows {
+    display: grid;
+    gap: 0;
+    padding: 4px 0;
+}
+
+.watchlist-edit-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 80px 80px;
+    gap: 8px;
+    align-items: center;
+    padding: 4px 12px;
+}
+
+.watchlist-edit-row + .watchlist-edit-row {
+    border-top: 1px solid var(--border-subtle);
+}
+
+.watchlist-edit-row-name {
+    font-size: 12px;
+    color: var(--text-primary);
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+}
+
+.watchlist-edit-row-name .edit-row-code {
+    color: var(--text-tertiary);
+    font-size: 10px;
+    font-family: var(--mono);
+    flex-shrink: 0;
+}
+
+.watchlist-edit-row-field {
+    position: relative;
+}
+
+.watchlist-edit-row-field-label {
+    position: absolute;
+    top: 50%;
+    left: 6px;
+    transform: translateY(-50%);
+    font-size: 9px;
+    color: var(--text-tertiary);
+    font-family: var(--font);
+    pointer-events: none;
+    letter-spacing: 0.3px;
+}
+
+.watchlist-edit-row input {
+    padding: 5px 7px;
+    border: 1px solid var(--border-card);
+    border-radius: var(--radius-xs);
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    font-size: 12px;
+    font-family: var(--mono);
+    text-align: right;
+    outline: none;
+    min-width: 0;
+    width: 100%;
+    /* 移除 number input 原生上下调节器（spinner） */
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+.watchlist-edit-row input::-webkit-outer-spin-button,
+.watchlist-edit-row input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.watchlist-edit-row input:focus {
+    border-color: var(--amber);
+}
+
+.watchlist-edit-row input::placeholder {
+    color: var(--text-tertiary);
+    font-family: var(--font);
 }
 
 .trend-arrow {
@@ -1545,8 +1785,13 @@ body {
 
     .watchlist-header-row,
     .watchlist-item {
-        grid-template-columns: minmax(0, 1fr) 64px 66px 24px;
-        gap: 8px;
+        grid-template-columns: minmax(0, 1fr) 48px 64px 18px;
+        gap: 6px;
+    }
+
+    .watchlist-header-row.with-cost,
+    .watchlist-grid.with-cost .watchlist-item {
+        grid-template-columns: minmax(0, 1fr) 48px 48px 64px 18px;
     }
 
     .watchlist-stock-price { font-size: 12px; }
@@ -1555,6 +1800,8 @@ body {
         padding: 2px 4px;
     }
     .watchlist-stock-name { font-size: 12px; }
+    .watchlist-stock-cost .cost-value { font-size: 11px; }
+    .watchlist-stock-cost .cost-pnl { font-size: 9px; }
 }
 
 @media (min-width: 1280px) {
@@ -1599,6 +1846,7 @@ body {
 
 .alert-toast.alert-up { border-left-color: var(--green); }
 .alert-toast.alert-down { border-left-color: var(--red); }
+.alert-toast.alert-info { border-left-color: var(--text-secondary); }
 
 .alert-toast.removing {
     animation: alert-toast-out 0.2s ease-in forwards;

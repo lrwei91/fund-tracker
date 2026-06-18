@@ -47,6 +47,11 @@ const CUSTOM_INDICES_KEY = 'fund_tracker_custom_indices';
 const CUSTOM_INDEX_QUOTE_CACHE_KEY = 'fund_tracker_custom_index_quote_cache';
 const CUSTOM_INDEX_UPDATE_TIME_KEY = 'fund_tracker_custom_index_update_time';
 const CUSTOM_INDEX_MAX = 4;
+const WATCHLIST_COST_KEY = 'fund_tracker_watchlist_cost';
+// 大盘/自选指数:每 30 分钟刷新一次的 prev 快照,用来画 trend-arrow
+// 结构: { market: { id: changePercent }, custom: { code: changePercent } }
+const INDEX_PREV_KEY = 'fund_tracker_index_prev_pct';
+const INDEX_REFRESH_SECONDS = 300;
 
 // 实时数据缓存
 let liveIndexData = null;
@@ -57,6 +62,7 @@ let watchQuoteUpdateTime = '';
 let customIndexCodes = [];        // 用户自选指数（板块/ETF），最多 4 个
 let customIndexCache = {};        // { code: { name, price, changePercent } }
 let customIndexUpdateTime = '';
+let watchlistCost = {};           // 自选股持仓成本/股数 { [code]: { cost, shares } }
 let hasInitialDataLoaded = false;
 
 // 涨跌幅告警状态
@@ -94,6 +100,17 @@ const ALERT_TOAST_TTL_MS = 20000;  // 单条弹窗自动消失时间
     try {
         var rawTime = localStorage.getItem(CUSTOM_INDEX_UPDATE_TIME_KEY);
         if (rawTime) customIndexUpdateTime = rawTime;
+    } catch (e) { /* ignore */ }
+})();
+
+// 启动时从 localStorage 恢复自选股持仓成本/股数
+(function restoreWatchlistCost() {
+    try {
+        var raw = localStorage.getItem(WATCHLIST_COST_KEY);
+        if (raw) {
+            var parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === 'object') watchlistCost = parsed;
+        }
     } catch (e) { /* ignore */ }
 })();
 
@@ -492,6 +509,21 @@ function bindEvents() {
         if (e.key === 'Enter') addStockToWatchlist();
     });
     document.getElementById('refresh-btn').addEventListener('click', manualRefreshAll);
+
+    // 编辑按钮：默认"编辑"展开面板，再次点击变"保存"保存并关闭
+    var editBtn = document.getElementById('watchlist-edit-btn');
+    if (editBtn) {
+        editBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            var panel = document.getElementById('watchlist-edit-panel');
+            if (!panel) return;
+            if (panel.hidden) {
+                openWatchlistEditPanel();
+            } else {
+                saveWatchlistEditPanel();
+            }
+        });
+    }
 }
 
 function apiUrl(path, params) {
@@ -909,6 +941,20 @@ function updateIndexUI(id, data) {
     var cls = data.changePercent > 0 ? 'positive' : data.changePercent < 0 ? 'negative' : 'neutral';
     v.classList.add(cls);
     c.classList.add(cls);
+    // 半小时对比箭头：跟价格绑定,内部读 prev 价格快照
+    var prev = readIndexPrevBucket('market').data[id];
+    var arrow = trendArrow(
+        typeof data.priceValue === 'number' ? data.priceValue : null,
+        typeof prev === 'number' ? prev : null
+    );
+    var existing = v.querySelector('.trend-arrow');
+    if (existing) existing.remove();
+    if (arrow) {
+        var span = document.createElement('span');
+        span.className = 'trend-arrow';
+        span.textContent = arrow;
+        v.appendChild(span);
+    }
 }
 
 async function loadIndexData() {
@@ -931,10 +977,25 @@ async function loadIndexData() {
         liveIndexData = result.data;
         writeTimedCache(SHORT_CACHE_KEYS.index, result.data);
         Object.keys(result.data).forEach(function (id) { updateIndexUI(id, result.data[id]); });
+        // 节流落盘:刷新节奏不变,只决定 prev 落盘的节奏
+        persistIndexPrevIfDue('market', snapshotIndexPrice(result.data));
         setLastUpdated('行情已更新');
     } catch (e) {
         if (!liveIndexData) setLastUpdated('行情获取失败');
     }
+}
+
+function snapshotIndexPrice(data) {
+    // 抽出 { key: priceValue } 快照,trend-arrow 用价格本身做对比基准
+    var out = {};
+    if (!data || typeof data !== 'object') return out;
+    Object.keys(data).forEach(function (id) {
+        var d = data[id];
+        if (d && typeof d.priceValue === 'number' && Number.isFinite(d.priceValue)) {
+            out[id] = d.priceValue;
+        }
+    });
+    return out;
 }
 
 // ---------- 资金流向 ----------
@@ -1254,6 +1315,69 @@ function persistCurrentChangePct() {
     });
     savePrevChangePct(map);
 }
+
+// 大盘 / 自选指数的 prev 快照(半小时对比基准)
+// 结构:{ market: { _updatedAt, data: { id: pct } }, custom: { _updatedAt, data: { code: pct } } }
+// _updatedAt 决定落盘节流:距上次落盘 < 30 分钟时,prev 保持原值(箭头语义=和上半小时比)
+function getIndexPrevPct() {
+    try {
+        var raw = JSON.parse(localStorage.getItem(INDEX_PREV_KEY));
+        if (raw && typeof raw === 'object') return raw;
+    } catch (e) { /* ignore */ }
+    return { market: { _updatedAt: 0, data: {} }, custom: { _updatedAt: 0, data: {} } };
+}
+// 排查用:浏览器 console 跑 __dumpIndexPrev() 打印 INDEX_PREV_KEY 实际内容
+window.__dumpIndexPrev = function () {
+ var raw = localStorage.getItem(INDEX_PREV_KEY);
+ console.log('=== INDEX_PREV_KEY raw localStorage ===');
+ console.log(raw);
+ try { console.log('parsed:', JSON.parse(raw)); } catch (e) { console.log('parse err:', e); }
+};
+function readIndexPrevBucket(bucket) {
+    var cur = getIndexPrevPct();
+    var b = cur[bucket];
+    if (!b || typeof b !== 'object') return { _updatedAt: 0, data: {} };
+    return {
+        _updatedAt: typeof b._updatedAt === 'number' ? b._updatedAt : 0,
+        data: b.data && typeof b.data === 'object' ? b.data : {},
+    };
+}
+// 仅当距上次落盘 ≥ INDEX_REFRESH_SECONDS 秒时,才把 currentMap 写入 bucket.data 并刷新 _updatedAt
+function persistIndexPrevIfDue(bucket, currentMap, now) {
+    var bucketObj = readIndexPrevBucket(bucket);
+    var nowMs = typeof now === 'number' ? now : Date.now();
+    var due = (nowMs - bucketObj._updatedAt) >= INDEX_REFRESH_SECONDS * 1000;
+    if (!due) return false;
+    var cleanData = {};
+    Object.keys(currentMap || {}).forEach(function (k) {
+        var v = currentMap[k];
+        if (typeof v === 'number' && Number.isFinite(v)) cleanData[k] = v;
+    });
+    var cur = getIndexPrevPct();
+    cur[bucket] = { _updatedAt: nowMs, data: cleanData };
+    try { localStorage.setItem(INDEX_PREV_KEY, JSON.stringify(cur)); } catch (e) {}
+    return true;
+}
+// 单点写入 prev(用于新增自选指数时立刻给一个 prev,让首次渲染的箭头 = self-vs-self = '─')
+function setIndexPrevForCode(bucket, code, pct) {
+    if (typeof pct !== 'number' || !Number.isFinite(pct)) return;
+    var cur = getIndexPrevPct();
+    var b = readIndexPrevBucket(bucket);
+    b.data[code] = pct;
+    // 单点写入不动 _updatedAt,避免污染节流基准
+    cur[bucket] = b;
+    try { localStorage.setItem(INDEX_PREV_KEY, JSON.stringify(cur)); } catch (e) {}
+}
+// 移除自选指数时同步清掉 prev,避免幽灵 prev
+function clearIndexPrevForCode(bucket, code) {
+    var cur = getIndexPrevPct();
+    var b = readIndexPrevBucket(bucket);
+    if (Object.prototype.hasOwnProperty.call(b.data, code)) {
+        delete b.data[code];
+        cur[bucket] = b;
+        try { localStorage.setItem(INDEX_PREV_KEY, JSON.stringify(cur)); } catch (e) {}
+    }
+}
 function trendArrow(current, prev) {
     if (prev === undefined || prev === null) return '─';
     if (current > prev) return '▲';
@@ -1360,10 +1484,7 @@ function getExportPayload() {
 }
 
 function showDataStatus(message, type) {
-    var el = document.getElementById('data-status');
-    if (!el) return;
-    el.textContent = message;
-    el.className = 'watchlist-status data-status' + (type === 'error' ? ' error' : '');
+    showStatusToast(message, type);
 }
 
 function exportWatchlistData() {
@@ -1633,23 +1754,24 @@ function removeStockFromWatchlist(code) {
 }
 
 function showWatchStatus(msg, type) {
-    var grid = document.getElementById('watchlist-grid');
-    if (!grid) return;
-    var section = grid.closest('.watchlist-section');
-    var scope = section || document;
-    var el = scope.querySelector(':scope > .card-body > .watchlist-status, :scope > .watchlist-status');
-    if (!el) {
-        el = document.createElement('div');
-        el.className = 'watchlist-status';
-        (section || grid.parentNode).appendChild(el);
-    }
-    el.textContent = msg;
-    el.className = 'watchlist-status' + (type === 'error' ? ' error' : '');
-    setTimeout(function () { if (el.textContent === msg) { el.textContent = ''; el.className = 'watchlist-status'; } }, 2500);
+    showStatusToast(msg, type);
 }
 
 function getAllWatchCodes() {
     return sanitizeCodes(getWatchTabs().flatMap(function (tab) { return tab.codes || []; }));
+}
+
+// 持仓股 tab 的代码：仅第一个分组（id === 'default'）
+function getHoldingCodes() {
+    var tabs = getWatchTabs();
+    var holding = tabs.find(function (tab) { return tab.id === 'default'; });
+    return sanitizeCodes(holding ? (holding.codes || []) : []);
+}
+
+// 持仓股 tab 是创建时的第一个 tab（id === 'default'，name 固定为"持仓股"）
+// 只有这个 tab 才显示成本价/盈亏列，避免对"候选股"等纯观察列造成干扰
+function isHoldingTab() {
+    return activeWatchTabId === 'default';
 }
 
 function renderWatchlist() {
@@ -1657,6 +1779,7 @@ function renderWatchlist() {
     var updateTimeEl = document.getElementById('watchlist-update-time');
     var codes = getWatchlist();
     var activeTab = getActiveWatchTab();
+    var showCost = isHoldingTab();
     if (codes.length === 0) {
         grid.innerHTML = '<div class="watchlist-empty">“' + escapeHtml(activeTab.name) + '”暂无股票</div>';
         if (updateTimeEl) updateTimeEl.textContent = '';
@@ -1674,9 +1797,19 @@ function renderWatchlist() {
             data ? data.changePercent : 0,
             data ? data.volume : '--',
             prev,
+            showCost,
         );
     }).join('');
     bindWatchRemove();
+    // 切换列数：持仓股 5 列（带成本），其他 4 列
+    grid.classList.toggle('with-cost', showCost);
+    document.querySelector('.watchlist-header-row')?.classList.toggle('with-cost', showCost);
+    // 编辑按钮只对持仓股 tab 有意义。
+    // 用 visibility 而非 display: none，避免候选股 tab 隐藏按钮时把 card-header 行高
+    // 压缩，导致下方 .watchlist-item 整体上移产生"跳一行"的视觉跳变。
+    var editBtn = document.getElementById('watchlist-edit-btn');
+    if (editBtn) editBtn.style.visibility = showCost ? 'visible' : 'hidden';
+    if (!showCost) closeWatchlistEditPanel();
     if (updateTimeEl) updateTimeEl.textContent = watchQuoteUpdateTime || '';
 }
 
@@ -1751,19 +1884,120 @@ async function loadSingleWatchQuote(code) {
     }
 }
 
-function renderWatchItem(code, name, price, changePercent, volume, prev) {
+function renderWatchItem(code, name, price, changePercent, volume, prev, showCost) {
     var cls = changePercent > 0 ? 'positive' : changePercent < 0 ? 'negative' : 'neutral';
     var pt = changePercent !== 0
         ? (changePercent > 0 ? '+' + Number(changePercent).toFixed(2) : Number(changePercent).toFixed(2)) + '%'
         : '0.00%';
     var arrow = trendArrow(changePercent, prev);
+    var data = watchQuoteCache[code];
+    var priceValue = data && typeof data.priceValue === 'number' ? data.priceValue : null;
+    var costCell = showCost ? renderCostCell(code, priceValue) : '';
     return '<div class="watchlist-item" data-code="' + escapeHtml(code) + '" data-pct="' + escapeHtml(changePercent) + '">' +
         '<div class="watchlist-item-main">' +
         '<div class="watchlist-stock-name">' + escapeHtml(name) + '</div>' +
         '<div class="watchlist-stock-code">' + escapeHtml(code) + '</div></div>' +
+        costCell +
         '<div class="watchlist-stock-price ' + cls + '">' + escapeHtml(price) + '</div>' +
         '<div class="watchlist-stock-change ' + cls + '">' + escapeHtml(pt) + ' <span class="trend-arrow">' + escapeHtml(arrow) + '</span></div>' +
         '<button class="watchlist-remove-btn" data-code="' + escapeHtml(code) + '" aria-label="删除 ' + escapeHtml(code) + '">✕</button></div>';
+}
+
+function renderCostCell(code, priceValue) {
+    var entry = watchlistCost[code];
+    if (!entry || typeof entry.cost !== 'number' || !Number.isFinite(entry.cost)) {
+        return '<div class="watchlist-stock-cost">' +
+            '<div class="cost-value empty">--</div>' +
+            '<div class="cost-pnl">未设成本</div>' +
+            '</div>';
+    }
+    var cost = entry.cost;
+    var shares = typeof entry.shares === 'number' && Number.isFinite(entry.shares) ? entry.shares : 0;
+    var pnl = null;
+    if (priceValue !== null && Number.isFinite(priceValue)) {
+        pnl = (priceValue - cost) * shares;
+    }
+    var pnlCls = pnl === null ? '' : (pnl > 0 ? 'positive' : pnl < 0 ? 'negative' : '');
+    var pnlText = pnl === null
+        ? '--'
+        : (pnl > 0 ? '+' : '') + pnl.toFixed(2);
+    return '<div class="watchlist-stock-cost">' +
+        '<div class="cost-value">' + cost.toFixed(2) + '</div>' +
+        '<div class="cost-pnl ' + pnlCls + '">' + pnlText + '</div>' +
+        '</div>';
+}
+
+function saveWatchlistCost() {
+    try { localStorage.setItem(WATCHLIST_COST_KEY, JSON.stringify(watchlistCost)); } catch (e) {}
+}
+
+// 编辑按钮：默认显示"编辑"，点击展开后变成"保存"（高亮强调色）
+function syncEditButtonLabel() {
+    var panel = document.getElementById('watchlist-edit-panel');
+    var btn = document.getElementById('watchlist-edit-btn');
+    if (!btn) return;
+    var isOpen = panel && !panel.hidden;
+    btn.textContent = isOpen ? '保存' : '编辑';
+    btn.classList.toggle('active', !!isOpen);
+}
+
+function openWatchlistEditPanel() {
+    var panel = document.getElementById('watchlist-edit-panel');
+    if (!panel) return;
+    panel.hidden = false;
+    renderWatchlistEditRows();
+    syncEditButtonLabel();
+}
+
+function closeWatchlistEditPanel() {
+    var panel = document.getElementById('watchlist-edit-panel');
+    if (panel) panel.hidden = true;
+    syncEditButtonLabel();
+}
+
+function renderWatchlistEditRows() {
+    var wrap = document.getElementById('watchlist-edit-rows');
+    if (!wrap) return;
+    var codes = getHoldingCodes();
+    if (codes.length === 0) {
+        wrap.innerHTML = '<div class="watchlist-empty">持仓股暂无股票</div>';
+        return;
+    }
+    wrap.innerHTML = codes.map(function (code) {
+        var data = watchQuoteCache[code];
+        var name = (data && data.name) || code;
+        var entry = watchlistCost[code] || {};
+        var costVal = typeof entry.cost === 'number' ? entry.cost : '';
+        var sharesVal = typeof entry.shares === 'number' ? entry.shares : '';
+        return '<div class="watchlist-edit-row" data-code="' + escapeHtml(code) + '">' +
+            '<div class="watchlist-edit-row-name">' + escapeHtml(name) + '<span class="edit-row-code">' + escapeHtml(code) + '</span></div>' +
+            '<input type="number" step="0.01" min="0" class="edit-cost-input" placeholder="成本价" value="' + escapeHtml(String(costVal)) + '" />' +
+            '<input type="number" step="1" min="0" class="edit-shares-input" placeholder="股数" value="' + escapeHtml(String(sharesVal)) + '" />' +
+            '</div>';
+    }).join('');
+}
+
+function saveWatchlistEditPanel() {
+    var rows = document.querySelectorAll('.watchlist-edit-row');
+    rows.forEach(function (row) {
+        var code = row.getAttribute('data-code');
+        var costInput = row.querySelector('.edit-cost-input');
+        var sharesInput = row.querySelector('.edit-shares-input');
+        var cost = parseFloat(costInput.value);
+        var shares = parseFloat(sharesInput.value);
+        if (Number.isFinite(cost) && cost > 0) {
+            watchlistCost[code] = {
+                cost: cost,
+                shares: Number.isFinite(shares) && shares > 0 ? shares : 0,
+            };
+        } else {
+            delete watchlistCost[code];
+        }
+    });
+    saveWatchlistCost();
+    renderWatchlist();
+    closeWatchlistEditPanel();
+    showWatchStatus('成本已保存');
 }
 
 function bindWatchRemove() {
@@ -1796,7 +2030,8 @@ function renderCustomIndex() {
         var name = d && d.name ? d.name : code + '（待刷新）';
         var price = d && d.price != null ? d.price : '--';
         var pct = d && typeof d.changePercent === 'number' ? d.changePercent : 0;
-        return renderCustomIndexItem(code, name, price, pct);
+        var change = d && typeof d.change === 'number' ? d.change : null;
+        return renderCustomIndexItem(code, name, price, pct, change);
     });
 
     // 满 4 个不显示加号；未满追加 1 个加号格子
@@ -1815,15 +2050,29 @@ function renderCustomIndex() {
     if (updateTimeEl) updateTimeEl.textContent = customIndexUpdateTime || '';
 }
 
-function renderCustomIndexItem(code, name, price, changePercent) {
+function renderCustomIndexItem(code, name, price, changePercent, change) {
     var cls = changePercent > 0 ? 'positive' : changePercent < 0 ? 'negative' : 'neutral';
-    var pt = changePercent !== 0
-        ? (changePercent > 0 ? '+' + Number(changePercent).toFixed(2) : Number(changePercent).toFixed(2)) + '%'
+    // 跟大盘指数同排版：涨跌额 / 涨跌幅
+    var changeStr = '--';
+    if (typeof change === 'number' && Number.isFinite(change)) {
+        changeStr = (change > 0 ? '+' : '') + change.toFixed(2);
+    }
+    var pctStr = (typeof changePercent === 'number' && Number.isFinite(changePercent) && changePercent !== 0)
+        ? (changePercent > 0 ? '+' : '') + changePercent.toFixed(2) + '%'
         : '0.00%';
+    // 半小时对比箭头：跟大盘指数一致,挂在价格后面,从 custom bucket 取 prev 价格
+    var cached = customIndexCache[code];
+    var priceValue = cached && typeof cached.priceValue === 'number' ? cached.priceValue : null;
+    var prev = (readIndexPrevBucket('custom').data || {})[code];
+    var arrow = trendArrow(
+        priceValue,
+        typeof prev === 'number' ? prev : null
+    );
+    var arrowHtml = arrow ? ' <span class="trend-arrow">' + escapeHtml(arrow) + '</span>' : '';
     return '<div class="index-item custom-index-data" data-code="' + escapeHtml(code) + '">' +
         '<div class="index-name">' + escapeHtml(name) + '</div>' +
-        '<div class="index-value ' + cls + '">' + escapeHtml(price) + '</div>' +
-        '<div class="index-change ' + cls + '">' + escapeHtml(pt) + '</div>' +
+        '<div class="index-value ' + cls + '">' + escapeHtml(price) + arrowHtml + '</div>' +
+        '<div class="index-change ' + cls + '">' + escapeHtml(changeStr) + ' / ' + escapeHtml(pctStr) + '</div>' +
         '<button type="button" class="custom-index-remove" data-remove-custom-index="' + escapeHtml(code) + '" aria-label="删除 ' + escapeHtml(code) + '">✕</button>' +
         '</div>';
 }
@@ -1883,6 +2132,7 @@ async function addCustomIndexByInput(rawValue) {
 function removeCustomIndex(code) {
     customIndexCodes = customIndexCodes.filter(function (c) { return c !== code; });
     delete customIndexCache[code];
+    clearIndexPrevForCode('custom', code);
     saveCustomIndices();
     persistCustomIndexCache();
     renderCustomIndex();
@@ -1890,23 +2140,7 @@ function removeCustomIndex(code) {
 }
 
 function showCustomIndexStatus(msg, type) {
-    var el = document.querySelector('.custom-index-status');
-    if (!el) {
-        var section = document.querySelector('.custom-index-section');
-        if (!section) return;
-        el = document.createElement('div');
-        el.className = 'custom-index-status';
-        var body = section.querySelector('.card-body');
-        if (body) body.insertBefore(el, body.firstChild);
-    }
-    el.textContent = msg;
-    el.className = 'custom-index-status' + (type === 'error' ? ' error' : '');
-    setTimeout(function () {
-        if (el.textContent === msg) {
-            el.textContent = '';
-            el.className = 'custom-index-status';
-        }
-    }, 2500);
+    showStatusToast(msg, type);
 }
 
 async function loadCustomIndexData() {
@@ -1928,6 +2162,8 @@ async function loadCustomIndexData() {
             persistCustomIndexUpdateTime(result.time);
         }
         persistCustomIndexCache();
+        // 节流落盘 prev
+        persistIndexPrevIfDue('custom', snapshotIndexPrice(result.data));
         renderCustomIndex();
     } catch (e) {
         // 非交易时段拉取失败属正常，渲染缓存即可
@@ -1948,6 +2184,10 @@ async function loadSingleCustomIndex(code) {
             persistCustomIndexUpdateTime(result.time);
         }
         persistCustomIndexCache();
+        // 新增指数首屏拉一次时,直接给这个 code 写入 prev(等于自身,首渲染箭头为 '─')
+        if (d && typeof d.priceValue === 'number') {
+            setIndexPrevForCode('custom', code, d.priceValue);
+        }
         renderCustomIndex();
     } catch (e) { /* ignore */ }
 }
@@ -2158,6 +2398,64 @@ function removeAlertToast(toast, immediate) {
     setTimeout(function () {
         if (toast.parentNode) toast.parentNode.removeChild(toast);
     }, 200);
+}
+
+// 通用 status 弹窗：复用 alert-toast 容器和样式,但不带涨跌方向/价格字段。
+// 用于 showDataStatus / showWatchStatus / showCustomIndexStatus 等所有"操作反馈"提示。
+const STATUS_TOAST_TTL_MS = 2500;
+function showStatusToast(message, type) {
+    var container = document.getElementById('alert-toast-container');
+    if (!container) return;
+    if (!message) return;
+
+    // 限制最大条数,超过则移除最早(与告警 toast 共用同一容器,故用 alert-toast 的上限)
+    while (container.children.length >= ALERT_TOAST_MAX) {
+        var first = container.firstChild;
+        if (!first) break;
+        removeAlertToast(first, true);
+    }
+
+    var variant = type === 'error' ? 'alert-down' : 'alert-info';
+    var timeText = new Date().toLocaleTimeString('zh-CN', {
+        timeZone: 'Asia/Shanghai',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+    });
+
+    var toast = document.createElement('div');
+    toast.className = 'alert-toast ' + variant;
+
+    var main = document.createElement('div');
+    main.className = 'alert-toast-main';
+
+    var title = document.createElement('div');
+    title.className = 'alert-toast-title';
+    var textSpan = document.createElement('span');
+    textSpan.className = 'alert-toast-name';
+    textSpan.textContent = message;
+    title.appendChild(textSpan);
+
+    var timeDiv = document.createElement('div');
+    timeDiv.className = 'alert-toast-time';
+    timeDiv.textContent = timeText;
+
+    main.appendChild(title);
+    main.appendChild(timeDiv);
+
+    var closeBtn = document.createElement('button');
+    closeBtn.className = 'alert-toast-close';
+    closeBtn.setAttribute('aria-label', '关闭');
+    closeBtn.textContent = '✕';
+    closeBtn.addEventListener('click', function () { removeAlertToast(toast); });
+
+    toast.appendChild(main);
+    toast.appendChild(closeBtn);
+
+    var timerId = setTimeout(function () { removeAlertToast(toast); }, STATUS_TOAST_TTL_MS);
+    toast.__alertTimer = timerId;
+
+    container.appendChild(toast);
 }
 
 // ---------- 财经新闻（金十源）----------
