@@ -15,7 +15,8 @@ https://fund-tracker-one.vercel.app
 - 如果持仓股有多条，浮窗每 5 秒自动轮播下一条。
 - 持仓浮窗会隐藏主头部、顶部 Tab、非自选股卡片、自选股分组 Tab、添加输入框、表头、编辑面板、状态文案和删除按钮。
 - 浮窗会先在后台完成 DOM 裁剪，再显示窗口，避免打开时闪出完整网页。
-- 浮窗整体可以拖动；点击右上角 `x` 或按 `Esc` 会隐藏浮窗并返回主窗口。
+- 浮窗整体可以拖动；右上角提供 `-` 和 `x` 两个按钮。
+- 点击 `-` 只隐藏浮窗，不主动拉起主窗口；点击 `x` 或按 `Esc` 会隐藏浮窗并返回主窗口。
 
 ## 开发
 
@@ -78,7 +79,7 @@ npm run build:all
 ## 文件说明
 
 - `main.js`：Electron 主进程，负责窗口创建、IPC、浮窗按钮注入和持仓浮窗 DOM 裁剪。
-- `preload.js`：向线上 Web 页面暴露 `window.shell.openHoldingWindow()` 和 `window.shell.closeHoldingWindow()`。
+- `preload.js`：向线上 Web 页面暴露 `window.shell.openHoldingWindow()`、`window.shell.minimizeHoldingWindow()` 和 `window.shell.closeHoldingWindow()`。
 - `package.json`：Electron 和 electron-builder 配置。
 - `dist/`：本地构建产物目录，已被 `shell/.gitignore` 忽略。
 
@@ -97,4 +98,4 @@ npm run build:all
 | `.watchlist-grid` | 持仓浮窗中的可滚动自选股列表 |
 | `.header`, `.tab-bar`, `.footer` | 持仓浮窗模式下隐藏的页面外层区域 |
 
-`openHoldingWindow()` 和 `closeHoldingWindow()` 使用 `ipcRenderer.invoke`，因此注入按钮可以根据主进程返回值展示打开中或打开失败状态。
+`openHoldingWindow()`、`minimizeHoldingWindow()` 和 `closeHoldingWindow()` 使用 `ipcRenderer.invoke`，因此注入按钮可以根据主进程返回值展示打开中或打开失败状态。

@@ -16,6 +16,8 @@ let holdingWin = null
 const FOCUS_HOLDING_WIDGET_SCRIPT = `
   (function focusWidget() {
     const STYLE_ID = '__shell_holding_widget_style__'
+    const CONTROLS_ID = '__shell_holding_controls__'
+    const MINIMIZE_ID = '__shell_holding_minimize__'
     const CLOSE_ID = '__shell_holding_close__'
     const ROTATE_MS = 5000
 
@@ -55,7 +57,7 @@ const FOCUS_HOLDING_WIDGET_SCRIPT = `
         'body.shell-holding-mode #tab-dashboard > section.card { display: none !important; }',
         'body.shell-holding-mode #tab-dashboard > section.watchlist-section { display: flex !important; flex-direction: column !important; height: 100vh !important; min-height: 0 !important; margin: 0 !important; border: 0 !important; border-radius: 10px !important; overflow: hidden !important; background: #050608 !important; box-shadow: 0 10px 30px rgba(0,0,0,.45) !important; box-sizing: border-box !important; }',
         'body.shell-holding-mode .watchlist-section .card-header, body.shell-holding-mode .watchlist-section .watchlist-toolbar, body.shell-holding-mode .watchlist-section .watchlist-add, body.shell-holding-mode .watchlist-section .watchlist-edit-panel, body.shell-holding-mode .watchlist-section .watchlist-header-row, body.shell-holding-mode .watchlist-section .watchlist-status, body.shell-holding-mode .watchlist-section .watchlist-remove-btn { display: none !important; }',
-        'body.shell-holding-mode .watchlist-section .card-body { display: block !important; flex: 1 1 auto !important; min-height: 0 !important; padding: 0 24px 0 10px !important; overflow: hidden !important; }',
+        'body.shell-holding-mode .watchlist-section .card-body { display: block !important; flex: 1 1 auto !important; min-height: 0 !important; padding: 0 42px 0 10px !important; overflow: hidden !important; }',
         'body.shell-holding-mode .watchlist-grid { position: relative !important; display: block !important; height: 100% !important; margin: 0 !important; overflow: hidden !important; }',
         'body.shell-holding-mode .watchlist-empty { height: 100% !important; display: flex !important; align-items: center !important; justify-content: center !important; padding: 0 !important; }',
         'body.shell-holding-mode .watchlist-item { position: absolute !important; inset: 0 !important; display: grid !important; grid-template-columns: minmax(64px, 1fr) 54px 70px !important; align-items: center !important; gap: 8px !important; height: 100% !important; padding: 0 !important; border: 0 !important; background: transparent !important; opacity: 0 !important; transform: translateY(4px) !important; pointer-events: none !important; transition: opacity .22s ease, transform .22s ease !important; -webkit-app-region: no-drag !important; }',
@@ -69,8 +71,12 @@ const FOCUS_HOLDING_WIDGET_SCRIPT = `
         'body.shell-holding-mode .watchlist-stock-change { font-size: 12px !important; font-weight: 800 !important; line-height: 1 !important; padding: 3px 5px !important; justify-content: center !important; border-radius: 2px !important; }',
         'body.shell-holding-mode .watchlist-stock-change .trend-arrow { display: none !important; }',
         '#__shell_drag_handle__ { position: fixed; inset: 0; z-index: 2147483645; -webkit-app-region: drag; cursor: grab; }',
-        '#__shell_holding_close__ { position: fixed; top: 1px; right: 1px; z-index: 2147483647; width: 14px; height: 14px; border: 0; border-radius: 999px; background: rgba(255,255,255,.1); color: rgba(255,255,255,.58); font: 11px/14px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif; cursor: pointer; padding: 0; -webkit-app-region: no-drag; }',
-        '#__shell_holding_close__:hover { background: rgba(255,255,255,.2); color: #fff; }'
+        '#__shell_holding_controls__ { position: fixed; top: 3px; right: 4px; z-index: 2147483647; display: flex; align-items: center; gap: 3px; -webkit-app-region: no-drag; }',
+        '#__shell_holding_controls__ button { width: 16px; height: 16px; border: 0; border-radius: 999px; background: rgba(255,255,255,.1); color: rgba(255,255,255,.68); font: 12px/16px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif; cursor: pointer; padding: 0; display: inline-flex; align-items: center; justify-content: center; transition: background .12s ease, color .12s ease, transform .12s ease; -webkit-app-region: no-drag; }',
+        '#__shell_holding_controls__ button:hover { background: rgba(255,255,255,.22); color: #fff; transform: translateY(-1px); }',
+        '#__shell_holding_controls__ button:active { transform: translateY(0); background: rgba(255,255,255,.28); }',
+        '#__shell_holding_minimize__ { font-size: 13px !important; line-height: 13px !important; padding-bottom: 2px !important; }',
+        '#__shell_holding_close__:hover { background: rgba(255,70,70,.34) !important; }'
       ].join('\\n')
       document.head.appendChild(style)
     }
@@ -143,17 +149,33 @@ const FOCUS_HOLDING_WIDGET_SCRIPT = `
       document.body.appendChild(handle)
     }
 
-    if (!document.getElementById(CLOSE_ID)) {
+    if (!document.getElementById(CONTROLS_ID)) {
+      const controls = document.createElement('div')
+      controls.id = CONTROLS_ID
+
+      const minimizeBtn = document.createElement('button')
+      minimizeBtn.id = MINIMIZE_ID
+      minimizeBtn.type = 'button'
+      minimizeBtn.textContent = '–'
+      minimizeBtn.title = '最小化浮窗'
+      minimizeBtn.setAttribute('aria-label', '最小化浮窗')
+      minimizeBtn.addEventListener('click', () => {
+        if (window.shell && window.shell.minimizeHoldingWindow) window.shell.minimizeHoldingWindow()
+      })
+
       const closeBtn = document.createElement('button')
       closeBtn.id = CLOSE_ID
       closeBtn.type = 'button'
       closeBtn.textContent = '×'
-      closeBtn.title = '返回主窗口'
-      closeBtn.setAttribute('aria-label', '返回主窗口')
+      closeBtn.title = '关闭浮窗并返回主窗口'
+      closeBtn.setAttribute('aria-label', '关闭浮窗并返回主窗口')
       closeBtn.addEventListener('click', () => {
         if (window.shell && window.shell.closeHoldingWindow) window.shell.closeHoldingWindow()
       })
-      document.body.appendChild(closeBtn)
+
+      controls.appendChild(minimizeBtn)
+      controls.appendChild(closeBtn)
+      document.body.appendChild(controls)
     }
 
     return Boolean(watchSection)
@@ -339,6 +361,11 @@ function restoreMainWindow() {
   }
 }
 
+// 最小化浮窗：只隐藏浮窗，不打断主窗口当前状态
+function minimizeHoldingWidget() {
+  if (holdingWin && !holdingWin.isDestroyed()) holdingWin.hide()
+}
+
 // 点击 📊 按钮：隐藏主窗口 + 显示浮窗
 function openHoldingWidget() {
   if (holdingWin && !holdingWin.isDestroyed()) {
@@ -359,6 +386,10 @@ function openHoldingWidget() {
 
 // ============ IPC ============
 ipcMain.handle('open-holding-window', () => openHoldingWidget())
+ipcMain.handle('minimize-holding-window', () => {
+  minimizeHoldingWidget()
+  return { ok: true }
+})
 ipcMain.handle('close-holding-window', () => {
   restoreMainWindow()
   return { ok: true }
