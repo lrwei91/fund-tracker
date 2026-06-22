@@ -407,6 +407,19 @@ function closeHoldingWidget() {
   if (holdingWin && !holdingWin.isDestroyed()) holdingWin.hide()
 }
 
+// macOS Dock 点击时，如果窗口只是被 hide() 了，需要主动恢复一个可见窗口。
+function showAppFromDock() {
+  const hasVisibleWindow = BrowserWindow.getAllWindows().some((win) => !win.isDestroyed() && win.isVisible())
+  if (hasVisibleWindow) return
+
+  if (mainWin && !mainWin.isDestroyed()) {
+    restoreMainWindow()
+    return
+  }
+
+  createMainWindow()
+}
+
 // 点击 📊 按钮：隐藏主窗口 + 显示浮窗
 function openHoldingWidget() {
   if (holdingWin && !holdingWin.isDestroyed()) {
@@ -445,7 +458,7 @@ app.whenReady().then(() => {
   createMainWindow()
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createMainWindow()
+    showAppFromDock()
   })
 })
 
