@@ -82,21 +82,26 @@ const FOCUS_HOLDING_WIDGET_SCRIPT = `
       document.head.appendChild(style)
     }
 
-    function syncHoldingColorMode() {
+    function syncHoldingDisplaySettings() {
       let mode = 'market'
+      let opacity = 100
       try {
         const settings = JSON.parse(localStorage.getItem('fund_tracker_settings') || '{}') || {}
         if (settings.holdingColorMode === 'white') mode = 'white'
+        const parsedOpacity = Number(settings.holdingOpacity)
+        if (Number.isFinite(parsedOpacity)) opacity = Math.max(0, Math.min(100, Math.round(parsedOpacity)))
       } catch (e) { /* ignore */ }
       document.documentElement.classList.toggle('shell-holding-white', mode === 'white')
       document.body.classList.toggle('shell-holding-white', mode === 'white')
+      const watchSection = document.querySelector('.watchlist-section')
+      if (watchSection) watchSection.style.opacity = String(opacity / 100)
     }
 
-    syncHoldingColorMode()
+    syncHoldingDisplaySettings()
     if (!window.__shellHoldingColorBound) {
       window.__shellHoldingColorBound = true
-      window.addEventListener('storage', syncHoldingColorMode)
-      window.__shellHoldingColorTimer = setInterval(syncHoldingColorMode, 1000)
+      window.addEventListener('storage', syncHoldingDisplaySettings)
+      window.__shellHoldingColorTimer = setInterval(syncHoldingDisplaySettings, 1000)
     }
 
     function getHoldingItems() {

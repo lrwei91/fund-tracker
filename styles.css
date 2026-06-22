@@ -1592,6 +1592,18 @@ body {
     border-bottom: 1px solid var(--border);
 }
 
+.settings-row-stacked {
+    display: grid;
+    gap: 8px;
+}
+
+.settings-row-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+
 .settings-row:last-child { border-bottom: none; }
 
 .settings-row label:first-child {
@@ -1701,6 +1713,19 @@ body {
     font-size: 12px;
     font-family: var(--mono);
     outline: none;
+}
+
+.settings-range-value {
+    color: var(--amber);
+    font-size: 12px;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+}
+
+.settings-range-input {
+    width: 100%;
+    accent-color: var(--amber);
+    cursor: pointer;
 }
 
 /* ---------- Footer ---------- */

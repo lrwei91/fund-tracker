@@ -12,6 +12,7 @@ let refreshSecondsMain = 10;
 let refreshSecondsSignal = 1800;
 let refreshSecondsNews = 60;
 let holdingColorMode = 'market';  // market: 红绿显示; white: 浮窗价格/涨跌幅全白
+let holdingOpacity = 100;          // 浮窗不透明度百分比：0-100
 let currentTab = 'dashboard';
 let activeWatchTabId = 'default';
 const API_BASE = '/api';
@@ -361,6 +362,13 @@ function normalizeOptionValue(value, allowedValues, fallback) {
     return allowedValues.includes(stringValue) ? stringValue : String(fallback);
 }
 
+function normalizePercentValue(value, fallback) {
+    var numberValue = Number(value);
+    if (!Number.isFinite(numberValue)) numberValue = Number(fallback);
+    if (!Number.isFinite(numberValue)) numberValue = 100;
+    return Math.max(0, Math.min(100, Math.round(numberValue)));
+}
+
 function getSettingsControls() {
     return {
         autoRefresh: document.getElementById('auto-refresh-toggle'),
@@ -368,6 +376,8 @@ function getSettingsControls() {
         signalInterval: document.getElementById('refresh-interval-signal'),
         newsInterval: document.getElementById('refresh-interval-news'),
         holdingColorMode: document.getElementById('holding-color-mode'),
+        holdingOpacity: document.getElementById('holding-opacity-input'),
+        holdingOpacityValue: document.getElementById('holding-opacity-value'),
         alertEnabled: document.getElementById('alert-enabled-toggle'),
         alertThreshold: document.getElementById('alert-threshold-input'),
     };
@@ -388,6 +398,7 @@ function loadSettings() {
     refreshSecondsSignal = parseInt(normalizeOptionValue(saved.signalInterval, ['900', '1800', '3600', '7200'], refreshSecondsSignal), 10);
     refreshSecondsNews = parseInt(normalizeOptionValue(saved.newsInterval, ['60', '600', '1800'], refreshSecondsNews), 10);
     holdingColorMode = normalizeOptionValue(saved.holdingColorMode, ['market', 'white'], holdingColorMode);
+    holdingOpacity = normalizePercentValue(saved.holdingOpacity, holdingOpacity);
 }
 
 function saveSettings() {
@@ -398,6 +409,7 @@ function saveSettings() {
             signalInterval: refreshSecondsSignal,
             newsInterval: refreshSecondsNews,
             holdingColorMode: holdingColorMode,
+            holdingOpacity: holdingOpacity,
         }));
     } catch (e) {}
 }
@@ -409,6 +421,8 @@ function syncSettingsControls() {
     if (controls.signalInterval) controls.signalInterval.value = String(refreshSecondsSignal);
     if (controls.newsInterval) controls.newsInterval.value = String(refreshSecondsNews);
     if (controls.holdingColorMode) controls.holdingColorMode.value = holdingColorMode;
+    if (controls.holdingOpacity) controls.holdingOpacity.value = String(holdingOpacity);
+    if (controls.holdingOpacityValue) controls.holdingOpacityValue.textContent = holdingOpacity + '%';
     if (controls.alertEnabled) controls.alertEnabled.checked = alertEnabled;
     if (controls.alertThreshold) controls.alertThreshold.value = String(alertThreshold);
 }
@@ -496,6 +510,19 @@ function bindEvents() {
             e.target.value = holdingColorMode;
             saveSettings();
         });
+    }
+
+    var holdingOpacityInput = document.getElementById('holding-opacity-input');
+    var holdingOpacityValue = document.getElementById('holding-opacity-value');
+    if (holdingOpacityInput) {
+        var commitHoldingOpacity = function (e) {
+            holdingOpacity = normalizePercentValue(e.target.value, 100);
+            e.target.value = String(holdingOpacity);
+            if (holdingOpacityValue) holdingOpacityValue.textContent = holdingOpacity + '%';
+            saveSettings();
+        };
+        holdingOpacityInput.addEventListener('input', commitHoldingOpacity);
+        holdingOpacityInput.addEventListener('change', commitHoldingOpacity);
     }
 
     document.getElementById('alert-enabled-toggle').addEventListener('change', function (e) {
