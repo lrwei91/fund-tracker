@@ -11,6 +11,7 @@ const WIDGET_MARGIN = 20
 
 let mainWin = null
 let holdingWin = null
+let lastHiddenWindow = 'main'
 
 // ============ 注入脚本：把 web 切成"持仓库浮窗模式" ============
 const FOCUS_HOLDING_WIDGET_SCRIPT = `
@@ -319,6 +320,7 @@ function createMainWindow() {
   mainWin.webContents.on('did-finish-load', () => injectMainButton(mainWin))
   mainWin.webContents.on('dom-ready', () => injectMainButton(mainWin))
   mainWin.webContents.on('did-navigate-in-page', () => injectMainButton(mainWin))
+  mainWin.on('minimize', () => { lastHiddenWindow = 'main' })
   mainWin.on('closed', () => { mainWin = null })
 }
 
@@ -399,7 +401,10 @@ function restoreMainWindow() {
 
 // 最小化浮窗：只隐藏浮窗，不打断主窗口当前状态
 function minimizeHoldingWidget() {
-  if (holdingWin && !holdingWin.isDestroyed()) holdingWin.hide()
+  if (holdingWin && !holdingWin.isDestroyed()) {
+    holdingWin.hide()
+    lastHiddenWindow = 'holding'
+  }
 }
 
 // 关闭浮窗：只隐藏浮窗，不主动还原主窗口
@@ -411,6 +416,14 @@ function closeHoldingWidget() {
 function showAppFromDock() {
   const hasVisibleWindow = BrowserWindow.getAllWindows().some((win) => !win.isDestroyed() && win.isVisible())
   if (hasVisibleWindow) return
+
+  if (lastHiddenWindow === 'holding' && holdingWin && !holdingWin.isDestroyed()) {
+    holdingWin.setBounds(getWidgetBounds())
+    prepareHoldingWidget(holdingWin)
+    holdingWin.show()
+    holdingWin.focus()
+    return
+  }
 
   if (mainWin && !mainWin.isDestroyed()) {
     restoreMainWindow()
@@ -433,6 +446,7 @@ function openHoldingWidget() {
 
   if (mainWin && !mainWin.isDestroyed()) {
     mainWin.hide()
+    lastHiddenWindow = 'main'
   }
 
   return { ok: true }
