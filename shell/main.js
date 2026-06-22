@@ -70,6 +70,7 @@ const FOCUS_HOLDING_WIDGET_SCRIPT = `
         'body.shell-holding-mode .watchlist-stock-price { font-size: 15px !important; font-weight: 800 !important; line-height: 1 !important; text-align: right !important; letter-spacing: 0 !important; }',
         'body.shell-holding-mode .watchlist-stock-change { font-size: 12px !important; font-weight: 800 !important; line-height: 1 !important; padding: 3px 5px !important; justify-content: center !important; border-radius: 2px !important; }',
         'body.shell-holding-mode .watchlist-stock-change .trend-arrow { display: none !important; }',
+        'body.shell-holding-mode.shell-holding-white .watchlist-stock-price, body.shell-holding-mode.shell-holding-white .watchlist-stock-change { color: #f8fafc !important; background: transparent !important; }',
         '#__shell_drag_handle__ { position: fixed; inset: 0; z-index: 2147483645; -webkit-app-region: drag; cursor: grab; }',
         '#__shell_holding_controls__ { position: fixed; top: 3px; right: 4px; z-index: 2147483647; display: flex; align-items: center; gap: 3px; -webkit-app-region: no-drag; }',
         '#__shell_holding_controls__ button { width: 16px; height: 16px; border: 0; border-radius: 999px; background: rgba(255,255,255,.1); color: rgba(255,255,255,.68); font: 12px/16px -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif; cursor: pointer; padding: 0; display: inline-flex; align-items: center; justify-content: center; transition: background .12s ease, color .12s ease, transform .12s ease; -webkit-app-region: no-drag; }',
@@ -79,6 +80,23 @@ const FOCUS_HOLDING_WIDGET_SCRIPT = `
         '#__shell_holding_close__:hover { background: rgba(255,70,70,.34) !important; }'
       ].join('\\n')
       document.head.appendChild(style)
+    }
+
+    function syncHoldingColorMode() {
+      let mode = 'market'
+      try {
+        const settings = JSON.parse(localStorage.getItem('fund_tracker_settings') || '{}') || {}
+        if (settings.holdingColorMode === 'white') mode = 'white'
+      } catch (e) { /* ignore */ }
+      document.documentElement.classList.toggle('shell-holding-white', mode === 'white')
+      document.body.classList.toggle('shell-holding-white', mode === 'white')
+    }
+
+    syncHoldingColorMode()
+    if (!window.__shellHoldingColorBound) {
+      window.__shellHoldingColorBound = true
+      window.addEventListener('storage', syncHoldingColorMode)
+      window.__shellHoldingColorTimer = setInterval(syncHoldingColorMode, 1000)
     }
 
     function getHoldingItems() {

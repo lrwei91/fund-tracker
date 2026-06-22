@@ -11,6 +11,7 @@ let isAutoRefresh = true;
 let refreshSecondsMain = 10;
 let refreshSecondsSignal = 1800;
 let refreshSecondsNews = 60;
+let holdingColorMode = 'market';  // market: 红绿显示; white: 浮窗价格/涨跌幅全白
 let currentTab = 'dashboard';
 let activeWatchTabId = 'default';
 const API_BASE = '/api';
@@ -366,6 +367,7 @@ function getSettingsControls() {
         mainInterval: document.getElementById('refresh-interval-main'),
         signalInterval: document.getElementById('refresh-interval-signal'),
         newsInterval: document.getElementById('refresh-interval-news'),
+        holdingColorMode: document.getElementById('holding-color-mode'),
         alertEnabled: document.getElementById('alert-enabled-toggle'),
         alertThreshold: document.getElementById('alert-threshold-input'),
     };
@@ -385,6 +387,7 @@ function loadSettings() {
     refreshSecondsMain = parseInt(normalizeOptionValue(saved.mainInterval, ['10', '30', '60'], refreshSecondsMain), 10);
     refreshSecondsSignal = parseInt(normalizeOptionValue(saved.signalInterval, ['900', '1800', '3600', '7200'], refreshSecondsSignal), 10);
     refreshSecondsNews = parseInt(normalizeOptionValue(saved.newsInterval, ['60', '600', '1800'], refreshSecondsNews), 10);
+    holdingColorMode = normalizeOptionValue(saved.holdingColorMode, ['market', 'white'], holdingColorMode);
 }
 
 function saveSettings() {
@@ -394,6 +397,7 @@ function saveSettings() {
             mainInterval: refreshSecondsMain,
             signalInterval: refreshSecondsSignal,
             newsInterval: refreshSecondsNews,
+            holdingColorMode: holdingColorMode,
         }));
     } catch (e) {}
 }
@@ -404,6 +408,7 @@ function syncSettingsControls() {
     if (controls.mainInterval) controls.mainInterval.value = String(refreshSecondsMain);
     if (controls.signalInterval) controls.signalInterval.value = String(refreshSecondsSignal);
     if (controls.newsInterval) controls.newsInterval.value = String(refreshSecondsNews);
+    if (controls.holdingColorMode) controls.holdingColorMode.value = holdingColorMode;
     if (controls.alertEnabled) controls.alertEnabled.checked = alertEnabled;
     if (controls.alertThreshold) controls.alertThreshold.value = String(alertThreshold);
 }
@@ -483,6 +488,15 @@ function bindEvents() {
         saveSettings();
         if (isAutoRefresh) { startNewsAutoRefresh(); }
     });
+
+    var holdingColorModeSelect = document.getElementById('holding-color-mode');
+    if (holdingColorModeSelect) {
+        holdingColorModeSelect.addEventListener('change', function (e) {
+            holdingColorMode = normalizeOptionValue(e.target.value, ['market', 'white'], 'market');
+            e.target.value = holdingColorMode;
+            saveSettings();
+        });
+    }
 
     document.getElementById('alert-enabled-toggle').addEventListener('change', function (e) {
         alertEnabled = !!e.target.checked;
