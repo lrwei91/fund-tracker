@@ -76,6 +76,17 @@ npm run build:all
 
 在 macOS 或 Linux 上构建出的 Windows 安装包未签名。macOS 构建也默认未签名，除非后续补充签名和 notarization 配置。
 
+## macOS 首次启动拦截处理
+
+如果 macOS 为整个应用打上隔离属性，Gatekeeper 可能会拦截未签名构建，导致应用无法正常启动。将 DMG 里的应用拖到 `/Applications` 后，在目标 Mac 上执行一次：
+
+```bash
+xattr -cr "/Applications/恭喜发财.app"
+chmod +x "/Applications/恭喜发财.app/Contents/MacOS/恭喜发财"
+```
+
+上面的应用名来自 `shell/package.json` 里的 `build.productName`。如果后续修改 `productName`，这里的路径也要同步调整。
+
 ## 文件说明
 
 - `main.js`：Electron 主进程，负责窗口创建、IPC、浮窗按钮注入和持仓浮窗 DOM 裁剪。
