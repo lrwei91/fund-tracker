@@ -17,8 +17,8 @@ https://fund-tracker-one.vercel.app
 - 设置面板里的「桌面浮窗 / 价格颜色」可控制浮窗价格和涨跌幅颜色：默认按红绿显示，也可改为全部白色。
 - 设置面板里的「桌面浮窗 / 不透明度」可控制浮窗透明度：默认 100%，最低 0%。
 - 浮窗会先在后台完成 DOM 裁剪，再显示窗口，避免打开时闪出完整网页。
-- 浮窗整体可以拖动；右上角提供 `-` 和 `x` 两个按钮。
-- 点击 `-` 只隐藏浮窗，不主动拉起主窗口；点击 `x` 或按 `Esc` 会隐藏浮窗并返回主窗口。
+- 浮窗整体可以拖动；右上角提供 `-`、`□` 和 `x` 三个按钮。
+- 点击 `-` 只隐藏浮窗，不主动拉起主窗口；点击 `□` 或按 `Esc` 会隐藏浮窗并返回主窗口；点击 `x` 只关闭浮窗。
 
 ## 开发
 
@@ -92,7 +92,7 @@ chmod +x "/Applications/恭喜发财.app/Contents/MacOS/恭喜发财"
 ## 文件说明
 
 - `main.js`：Electron 主进程，负责窗口创建、IPC、浮窗按钮注入和持仓浮窗 DOM 裁剪。
-- `preload.js`：向线上 Web 页面暴露 `window.shell.openHoldingWindow()`、`window.shell.minimizeHoldingWindow()` 和 `window.shell.closeHoldingWindow()`。
+- `preload.js`：向线上 Web 页面暴露 `window.shell.openHoldingWindow()`、`window.shell.minimizeHoldingWindow()`、`window.shell.maximizeHoldingWindow()` 和 `window.shell.closeHoldingWindow()`。
 - `package.json`：Electron 和 electron-builder 配置。
 - `dist/`：本地构建产物目录，已被 `shell/.gitignore` 忽略。
 
@@ -111,4 +111,4 @@ chmod +x "/Applications/恭喜发财.app/Contents/MacOS/恭喜发财"
 | `.watchlist-grid` | 持仓浮窗中的可滚动自选股列表 |
 | `.header`, `.tab-bar`, `.footer` | 持仓浮窗模式下隐藏的页面外层区域 |
 
-`openHoldingWindow()`、`minimizeHoldingWindow()` 和 `closeHoldingWindow()` 使用 `ipcRenderer.invoke`，因此注入按钮可以根据主进程返回值展示打开中或打开失败状态。
+`openHoldingWindow()`、`minimizeHoldingWindow()`、`maximizeHoldingWindow()` 和 `closeHoldingWindow()` 使用 `ipcRenderer.invoke`，因此注入按钮可以根据主进程返回值展示打开中或打开失败状态。

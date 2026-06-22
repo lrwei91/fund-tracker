@@ -4,5 +4,6 @@ const { contextBridge, ipcRenderer } = require('electron')
 contextBridge.exposeInMainWorld('shell', {
   openHoldingWindow: () => ipcRenderer.invoke('open-holding-window'),
   minimizeHoldingWindow: () => ipcRenderer.invoke('minimize-holding-window'),
+  maximizeHoldingWindow: () => ipcRenderer.invoke('maximize-holding-window'),
   closeHoldingWindow: () => ipcRenderer.invoke('close-holding-window'),
 })

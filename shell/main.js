@@ -18,6 +18,7 @@ const FOCUS_HOLDING_WIDGET_SCRIPT = `
     const STYLE_ID = '__shell_holding_widget_style__'
     const CONTROLS_ID = '__shell_holding_controls__'
     const MINIMIZE_ID = '__shell_holding_minimize__'
+    const MAXIMIZE_ID = '__shell_holding_maximize__'
     const CLOSE_ID = '__shell_holding_close__'
     const ROTATE_MS = 5000
 
@@ -57,7 +58,7 @@ const FOCUS_HOLDING_WIDGET_SCRIPT = `
         'body.shell-holding-mode #tab-dashboard > section.card { display: none !important; }',
         'body.shell-holding-mode #tab-dashboard > section.watchlist-section { display: flex !important; flex-direction: column !important; height: 100vh !important; min-height: 0 !important; margin: 0 !important; border: 0 !important; border-radius: 10px !important; overflow: hidden !important; background: #050608 !important; box-shadow: 0 10px 30px rgba(0,0,0,.45) !important; box-sizing: border-box !important; }',
         'body.shell-holding-mode .watchlist-section .card-header, body.shell-holding-mode .watchlist-section .watchlist-toolbar, body.shell-holding-mode .watchlist-section .watchlist-add, body.shell-holding-mode .watchlist-section .watchlist-edit-panel, body.shell-holding-mode .watchlist-section .watchlist-header-row, body.shell-holding-mode .watchlist-section .watchlist-status, body.shell-holding-mode .watchlist-section .watchlist-remove-btn { display: none !important; }',
-        'body.shell-holding-mode .watchlist-section .card-body { display: block !important; flex: 1 1 auto !important; min-height: 0 !important; padding: 0 42px 0 10px !important; overflow: hidden !important; }',
+        'body.shell-holding-mode .watchlist-section .card-body { display: block !important; flex: 1 1 auto !important; min-height: 0 !important; padding: 0 62px 0 10px !important; overflow: hidden !important; }',
         'body.shell-holding-mode .watchlist-grid { position: relative !important; display: block !important; height: 100% !important; margin: 0 !important; overflow: hidden !important; }',
         'body.shell-holding-mode .watchlist-empty { height: 100% !important; display: flex !important; align-items: center !important; justify-content: center !important; padding: 0 !important; }',
         'body.shell-holding-mode .watchlist-item { position: absolute !important; inset: 0 !important; display: grid !important; grid-template-columns: minmax(64px, 1fr) 54px 70px !important; align-items: center !important; gap: 8px !important; height: 100% !important; padding: 0 !important; border: 0 !important; background: transparent !important; opacity: 0 !important; transform: translateY(4px) !important; pointer-events: none !important; transition: opacity .22s ease, transform .22s ease !important; -webkit-app-region: no-drag !important; }',
@@ -77,6 +78,7 @@ const FOCUS_HOLDING_WIDGET_SCRIPT = `
         '#__shell_holding_controls__ button:hover { background: rgba(255,255,255,.22); color: #fff; transform: translateY(-1px); }',
         '#__shell_holding_controls__ button:active { transform: translateY(0); background: rgba(255,255,255,.28); }',
         '#__shell_holding_minimize__ { font-size: 13px !important; line-height: 13px !important; padding-bottom: 2px !important; }',
+        '#__shell_holding_maximize__ { font-size: 10px !important; line-height: 10px !important; padding-bottom: 1px !important; }',
         '#__shell_holding_close__:hover { background: rgba(255,70,70,.34) !important; }'
       ].join('\\n')
       document.head.appendChild(style)
@@ -186,17 +188,28 @@ const FOCUS_HOLDING_WIDGET_SCRIPT = `
         if (window.shell && window.shell.minimizeHoldingWindow) window.shell.minimizeHoldingWindow()
       })
 
+      const maximizeBtn = document.createElement('button')
+      maximizeBtn.id = MAXIMIZE_ID
+      maximizeBtn.type = 'button'
+      maximizeBtn.textContent = '□'
+      maximizeBtn.title = '还原主窗口'
+      maximizeBtn.setAttribute('aria-label', '还原主窗口')
+      maximizeBtn.addEventListener('click', () => {
+        if (window.shell && window.shell.maximizeHoldingWindow) window.shell.maximizeHoldingWindow()
+      })
+
       const closeBtn = document.createElement('button')
       closeBtn.id = CLOSE_ID
       closeBtn.type = 'button'
       closeBtn.textContent = '×'
-      closeBtn.title = '关闭浮窗并返回主窗口'
-      closeBtn.setAttribute('aria-label', '关闭浮窗并返回主窗口')
+      closeBtn.title = '关闭浮窗'
+      closeBtn.setAttribute('aria-label', '关闭浮窗')
       closeBtn.addEventListener('click', () => {
         if (window.shell && window.shell.closeHoldingWindow) window.shell.closeHoldingWindow()
       })
 
       controls.appendChild(minimizeBtn)
+      controls.appendChild(maximizeBtn)
       controls.appendChild(closeBtn)
       document.body.appendChild(controls)
     }
@@ -389,6 +402,11 @@ function minimizeHoldingWidget() {
   if (holdingWin && !holdingWin.isDestroyed()) holdingWin.hide()
 }
 
+// 关闭浮窗：只隐藏浮窗，不主动还原主窗口
+function closeHoldingWidget() {
+  if (holdingWin && !holdingWin.isDestroyed()) holdingWin.hide()
+}
+
 // 点击 📊 按钮：隐藏主窗口 + 显示浮窗
 function openHoldingWidget() {
   if (holdingWin && !holdingWin.isDestroyed()) {
@@ -413,8 +431,12 @@ ipcMain.handle('minimize-holding-window', () => {
   minimizeHoldingWidget()
   return { ok: true }
 })
-ipcMain.handle('close-holding-window', () => {
+ipcMain.handle('maximize-holding-window', () => {
   restoreMainWindow()
+  return { ok: true }
+})
+ipcMain.handle('close-holding-window', () => {
+  closeHoldingWidget()
   return { ok: true }
 })
 
