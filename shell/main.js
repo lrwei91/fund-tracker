@@ -27,6 +27,11 @@ const FOCUS_HOLDING_WIDGET_SCRIPT = `
     const dashPanel = document.querySelector('#tab-dashboard')
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.toggle('active', btn === dashTab))
     document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.toggle('active', panel === dashPanel))
+    try {
+      localStorage.setItem('fund_tracker_active_watch_tab', 'default')
+    } catch (e) { /* ignore */ }
+    const holdingTab = document.querySelector('.watchlist-tab[data-watch-tab="default"]')
+    if (holdingTab && !holdingTab.classList.contains('active')) holdingTab.click()
 
     const watchSection = document.querySelector('.watchlist-section')
     if (watchSection) {
@@ -70,24 +75,66 @@ const FOCUS_HOLDING_WIDGET_SCRIPT = `
       document.head.appendChild(style)
     }
 
-    function rotateHoldingItems() {
-      const items = Array.from(document.querySelectorAll('.watchlist-grid .watchlist-item'))
-      if (!items.length) return
-
-      let index = Number(document.body.dataset.shellHoldingIndex || '0')
-      if (!Number.isFinite(index) || index < 0 || index >= items.length) index = 0
-      items.forEach((item, i) => item.classList.toggle('shell-active-holding', i === index))
-      document.body.dataset.shellHoldingIndex = String((index + 1) % items.length)
-
-      if (items.length <= 1) return
-      if (window.__shellHoldingTicker) clearTimeout(window.__shellHoldingTicker)
-      window.__shellHoldingTicker = setTimeout(rotateHoldingItems, ROTATE_MS)
+    function getHoldingItems() {
+      return Array.from(document.querySelectorAll('.watchlist-grid .watchlist-item'))
+        .filter(item => item.getAttribute('data-code') && item.querySelector('.watchlist-stock-name'))
     }
 
-    if (!document.querySelector('.watchlist-item.shell-active-holding')) {
-      rotateHoldingItems()
-    } else if (document.querySelectorAll('.watchlist-grid .watchlist-item').length > 1 && !window.__shellHoldingTicker) {
-      window.__shellHoldingTicker = setTimeout(rotateHoldingItems, ROTATE_MS)
+    function getActiveCode() {
+      const active = document.querySelector('.watchlist-item.shell-active-holding')
+      return active ? active.getAttribute('data-code') : ''
+    }
+
+    function setActiveHoldingItem(nextIndex, preferredCode) {
+      const items = getHoldingItems()
+      if (!items.length) {
+        document.body.dataset.shellHoldingIndex = '0'
+        return
+      }
+
+      let index = Number(nextIndex)
+      if (preferredCode) {
+        const matchedIndex = items.findIndex(item => item.getAttribute('data-code') === preferredCode)
+        if (matchedIndex >= 0) index = matchedIndex
+      }
+      if (!Number.isFinite(index) || index < 0 || index >= items.length) index = 0
+
+      items.forEach((item, i) => item.classList.toggle('shell-active-holding', i === index))
+      document.body.dataset.shellHoldingIndex = String((index + 1) % items.length)
+    }
+
+    function rotateHoldingItems() {
+      setActiveHoldingItem(Number(document.body.dataset.shellHoldingIndex || '0'))
+
+      if (window.__shellHoldingTicker) clearTimeout(window.__shellHoldingTicker)
+      if (getHoldingItems().length > 1) {
+        window.__shellHoldingTicker = setTimeout(rotateHoldingItems, ROTATE_MS)
+      } else {
+        window.__shellHoldingTicker = null
+      }
+    }
+
+    function syncHoldingItemsAfterRender() {
+      const activeCode = getActiveCode()
+      const currentIndex = Number(document.body.dataset.shellHoldingIndex || '0') - 1
+      setActiveHoldingItem(currentIndex, activeCode)
+
+      if (window.__shellHoldingTicker) clearTimeout(window.__shellHoldingTicker)
+      window.__shellHoldingTicker = null
+      if (getHoldingItems().length > 1) {
+        window.__shellHoldingTicker = setTimeout(rotateHoldingItems, ROTATE_MS)
+      }
+    }
+
+    syncHoldingItemsAfterRender()
+
+    const grid = document.querySelector('.watchlist-grid')
+    if (grid && !window.__shellHoldingObserver) {
+      window.__shellHoldingObserver = new MutationObserver(() => {
+        if (window.__shellHoldingSyncFrame) cancelAnimationFrame(window.__shellHoldingSyncFrame)
+        window.__shellHoldingSyncFrame = requestAnimationFrame(syncHoldingItemsAfterRender)
+      })
+      window.__shellHoldingObserver.observe(grid, { childList: true })
     }
 
     if (!document.getElementById('__shell_drag_handle__')) {
