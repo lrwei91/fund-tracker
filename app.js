@@ -212,6 +212,7 @@ document.addEventListener('DOMContentLoaded', function () {
     syncSettingsControls();
     initDataPanel();
     bindEvents();
+    initStockFundFlowModal();
     initAutoRefresh();
     renderCustomIndex();
     // 页面初始化:按市场阶段决定是否发请求
@@ -1231,9 +1232,7 @@ async function loadFundFlow120dData(force) {
     var todayKey = getShanghaiDateKey();
     var cached = readFundFlowCache();
     if (cached && cached.date === todayKey && cached.data) {
-        populateTodayFundFlow(cached.data);
         renderRows(cached.data);
-        renderWatchlist();
         return;
     }
 
@@ -1243,9 +1242,7 @@ async function loadFundFlow120dData(force) {
         var result = await res.json();
         if (!result.success || !result.data || !Array.isArray(result.data.items)) throw new Error('数据异常');
         writeFundFlowCache(todayKey, result.data.items);
-        populateTodayFundFlow(result.data.items);
         renderRows(result.data.items);
-        renderWatchlist();
     } catch (e) {
         if (cached && cached.data) {
             renderRows(cached.data);
@@ -1255,18 +1252,8 @@ async function loadFundFlow120dData(force) {
     }
 }
 
-// 持仓股表格 "今日资金流" sub-row 用: 从 fund-flow-120d item.summary.today 提取
-// (主力/大单/中单/小单 当日净额, 单位:元)
-var todayFundFlow = {};  // { [code]: { main, large, medium, small } }
-function populateTodayFundFlow(items) {
-    var next = {};
-    (items || []).forEach(function (it) {
-        if (it && it.code && it.summary && it.summary.today) {
-            next[it.code] = it.summary.today;
-        }
-    });
-    todayFundFlow = next;
-}
+// 持仓股表格 "今日资金流" sub-row 用: 之前每行直接显示, 现改为点击股票弹窗查看。
+// (fund-flow 表格的 today 4 档仍保留, 弹窗直接复用; 持仓股 sub-row 移除)
 
 function readFundFlowCache() {
     try { return JSON.parse(localStorage.getItem(FUND_FLOW_CACHE_KEY) || 'null'); } catch (e) { return null; }
@@ -2051,6 +2038,7 @@ function renderWatchlist() {
     // 切换列数：持仓股 5 列（带成本），其他 4 列
     grid.classList.toggle('with-cost', showCost);
     document.querySelector('.watchlist-header-row')?.classList.toggle('with-cost', showCost);
+    bindWatchItemClick();
     // 持仓股 sub-row 的资金流 bar 宽度注入 (data-w → style.width,绕开 dom-contract 禁内联 style)
     grid.querySelectorAll('.watchlist-fund-fill[data-w]').forEach(function (fill) {
         fill.style.width = fill.getAttribute('data-w') + '%';
@@ -2141,57 +2129,14 @@ function renderWatchItem(code, name, price, changePercent, volume, prev, showCos
     var data = watchQuoteCache[code];
     var priceValue = data && typeof data.priceValue === 'number' ? data.priceValue : null;
     var costCell = showCost ? renderCostCell(code, priceValue) : '';
-    // 持仓股 tab 才显示 4 档资金流 sub-row (依赖 loadFundFlow120d 加载后的 todayFundFlow cache)
-    var fundFlowCell = (showCost && todayFundFlow[code]) ? renderFundFlowCell(todayFundFlow[code]) : '';
-    return '<div class="watchlist-item' + (fundFlowCell ? ' with-fund-flow' : '') + '" data-code="' + escapeHtml(code) + '" data-pct="' + escapeHtml(changePercent) + '">' +
+    return '<div class="watchlist-item clickable" data-code="' + escapeHtml(code) + '" data-pct="' + escapeHtml(changePercent) + '">' +
         '<div class="watchlist-item-main">' +
         '<div class="watchlist-stock-name">' + escapeHtml(name) + '</div>' +
         '<div class="watchlist-stock-code">' + escapeHtml(code) + '</div></div>' +
         costCell +
         '<div class="watchlist-stock-price ' + cls + '">' + escapeHtml(price) + '</div>' +
         '<div class="watchlist-stock-change ' + cls + '">' + escapeHtml(pt) + ' <span class="trend-arrow">' + escapeHtml(arrow) + '</span></div>' +
-        '<button class="watchlist-remove-btn" data-code="' + escapeHtml(code) + '" aria-label="删除 ' + escapeHtml(code) + '">✕</button>' +
-        fundFlowCell +
-    '</div>';
-}
-
-// 持仓股 "今日资金流" sub-row: 4 档 mini bar (主力/大单/中单/小单)
-// 数据从 todayFundFlow[code] 来,单位:元;bar 长度按 |金额| / max 归一化
-function renderFundFlowCell(flow) {
-    function fmtYuan(yuan) {
-        if (!yuan) return '0';
-        var abs = Math.abs(yuan);
-        var sign = yuan > 0 ? '+' : yuan < 0 ? '-' : '';
-        if (abs >= 1e8) return sign + (abs / 1e8).toFixed(2) + '亿';
-        if (abs >= 1e4) return sign + (abs / 1e4).toFixed(0) + '万';
-        return sign + abs.toFixed(0);
-    }
-    // bar 长度归一化: 当前 4 档绝对值中最大
-    var items = [
-        { key: 'main',   label: '主力' },
-        { key: 'large',  label: '大单' },
-        { key: 'medium', label: '中单' },
-        { key: 'small',  label: '小单' },
-    ];
-    var max = 1;
-    items.forEach(function (it) {
-        var a = Math.abs(flow[it.key] || 0);
-        if (a > max) max = a;
-    });
-    var html = '<div class="watchlist-fund-flow">';
-    items.forEach(function (it) {
-        var v = flow[it.key] || 0;
-        var w = (Math.abs(v) / max * 100).toFixed(1);
-        var cls = v > 0 ? 'positive' : v < 0 ? 'negative' : 'neutral';
-        // 4 档横排 grid: 标签 / bar / 金额
-        html += '<div class="watchlist-fund-row">' +
-            '<span class="watchlist-fund-label">' + it.label + '</span>' +
-            '<span class="watchlist-fund-track"><span class="watchlist-fund-fill ' + cls + '" data-w="' + w + '"></span></span>' +
-            '<span class="watchlist-fund-value ' + cls + '">' + escapeHtml(fmtYuan(v)) + '</span>' +
-        '</div>';
-    });
-    html += '</div>';
-    return html;
+        '<button class="watchlist-remove-btn" data-code="' + escapeHtml(code) + '" aria-label="删除 ' + escapeHtml(code) + '">✕</button></div>';
 }
 
 function renderCostCell(code, priceValue) {
@@ -2297,6 +2242,129 @@ function bindWatchRemove() {
             e.stopPropagation();
             removeStockFromWatchlist(this.getAttribute('data-code'));
         });
+    });
+}
+
+// 点击持仓股某行 → 弹窗显示今日 4 档资金流 (主力/大单/中单/小单)
+// 每次展开都重新 fetch 最新数据,不走本地 cache
+function bindWatchItemClick() {
+    var grid = document.getElementById('watchlist-grid');
+    if (!grid || grid.dataset.clickBound === 'true') return;
+    grid.dataset.clickBound = 'true';
+    grid.addEventListener('click', function (e) {
+        // 点击删除按钮时不触发弹窗
+        if (e.target.closest('.watchlist-remove-btn')) return;
+        var item = e.target.closest('.watchlist-item');
+        if (!item) return;
+        var code = item.getAttribute('data-code');
+        if (code) showStockFundFlow(code);
+    });
+}
+
+async function showStockFundFlow(code) {
+    var panel = document.getElementById('stock-fund-panel');
+    var overlay = document.getElementById('stock-fund-overlay');
+    var body = document.getElementById('stock-fund-body');
+    var title = document.getElementById('stock-fund-title');
+    var timeEl = document.getElementById('stock-fund-time');
+    if (!panel || !overlay || !body || !title) return;
+    if (overlay.hidden) overlay.hidden = false;
+    if (panel.hidden) panel.hidden = false;
+    body.innerHTML = '<div class="list-empty">加载中...</div>';
+    if (timeEl) timeEl.textContent = '';
+
+    try {
+        var res = await fetch(apiUrl('/fund-flow-120d', { codes: code, days: 2 }));
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        var json = await res.json();
+        if (!json.success || !json.data || !Array.isArray(json.data.items) || !json.data.items.length) {
+            throw new Error('数据异常');
+        }
+        var item = json.data.items[0];
+        var today = item.summary && item.summary.today;
+        var recent = item.recent || [];
+        var last = recent.length ? recent[recent.length - 1] : null;
+        var prev = recent.length > 1 ? recent[recent.length - 2] : null;
+        var lastDate = last ? last.date : (item.latestDate || '');
+        var prevMain = prev ? prev.mainNet : null;
+        title.textContent = (item.name || code) + ' (' + code + ')';
+        if (timeEl) timeEl.textContent = lastDate ? '交易日 ' + lastDate : '';
+        body.innerHTML = renderStockFundFlowBody(today, last, prevMain);
+        // bar 宽度注入 (data-w → style.width,绕开 dom-contract 禁内联 style)
+        body.querySelectorAll('.watchlist-fund-fill[data-w]').forEach(function (fill) {
+            fill.style.width = fill.getAttribute('data-w') + '%';
+        });
+    } catch (e) {
+        body.innerHTML = '<div class="list-empty">资金流加载失败: ' + escapeHtml(e.message) + '</div>';
+    }
+}
+
+function renderStockFundFlowBody(today, last, prevMain) {
+    function fmtYuan(yuan) {
+        if (!yuan) return '0';
+        var abs = Math.abs(yuan);
+        var sign = yuan > 0 ? '+' : yuan < 0 ? '-' : '';
+        if (abs >= 1e8) return sign + (abs / 1e8).toFixed(2) + '亿';
+        if (abs >= 1e4) return sign + (abs / 1e4).toFixed(0) + '万';
+        return sign + abs.toFixed(0);
+    }
+    if (!today || !last) return '<div class="list-empty">暂无当日资金流数据</div>';
+
+    var pct = typeof last.pct === 'number' ? last.pct : 0;
+    var pctCls = pct > 0 ? 'positive' : pct < 0 ? 'negative' : 'neutral';
+    var pctStr = (pct > 0 ? '+' : '') + pct.toFixed(2) + '%';
+
+    var items = [
+        { key: 'main',   label: '主力' },
+        { key: 'large',  label: '大单' },
+        { key: 'medium', label: '中单' },
+        { key: 'small',  label: '小单' },
+    ];
+    var max = 1;
+    items.forEach(function (it) {
+        var a = Math.abs(today[it.key] || 0);
+        if (a > max) max = a;
+    });
+    var mainNet = today.main || 0;
+    var prevMainText = prevMain === null || prevMain === undefined
+        ? ''
+        : ' (昨 ' + fmtYuan(prevMain) + ')';
+    var rows = items.map(function (it) {
+        var v = today[it.key] || 0;
+        var w = (Math.abs(v) / max * 100).toFixed(1);
+        var cls = v > 0 ? 'positive' : v < 0 ? 'negative' : 'neutral';
+        return '<div class="watchlist-fund-row">' +
+            '<span class="watchlist-fund-label">' + it.label + '</span>' +
+            '<span class="watchlist-fund-track"><span class="watchlist-fund-fill ' + cls + '" data-w="' + w + '"></span></span>' +
+            '<span class="watchlist-fund-value ' + cls + '">' + escapeHtml(fmtYuan(v)) + '</span>' +
+        '</div>';
+    }).join('');
+
+    return '<div class="stock-fund-header">' +
+        '<div class="stock-fund-pct ' + pctCls + '">' + escapeHtml(pctStr) + '</div>' +
+        '<div class="stock-fund-main">主力合计 ' + escapeHtml(fmtYuan(mainNet)) + escapeHtml(prevMainText) + '</div>' +
+        '</div>' +
+        '<div class="watchlist-fund-flow">' + rows + '</div>';
+}
+
+function closeStockFundFlow() {
+    var panel = document.getElementById('stock-fund-panel');
+    var overlay = document.getElementById('stock-fund-overlay');
+    if (panel) panel.hidden = true;
+    if (overlay) overlay.hidden = true;
+}
+
+// 弹窗关闭:点关闭按钮 / 点遮罩 / Esc
+function initStockFundFlowModal() {
+    var closeBtn = document.getElementById('stock-fund-close');
+    var overlay = document.getElementById('stock-fund-overlay');
+    if (closeBtn) closeBtn.addEventListener('click', closeStockFundFlow);
+    if (overlay) overlay.addEventListener('click', closeStockFundFlow);
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            var panel = document.getElementById('stock-fund-panel');
+            if (panel && !panel.hidden) closeStockFundFlow();
+        }
     });
 }
 

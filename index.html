@@ -388,6 +388,19 @@
     </div>
 </div>
 
+<!-- 单股资金流弹窗 (点击持仓股某行触发) -->
+<div class="modal-overlay" id="stock-fund-overlay" hidden></div>
+<div class="modal-panel" id="stock-fund-panel" role="dialog" aria-modal="true" aria-labelledby="stock-fund-title" hidden>
+    <div class="modal-header">
+        <h3 id="stock-fund-title">股票资金流</h3>
+        <span class="modal-header-time" id="stock-fund-time"></span>
+        <button class="modal-close" id="stock-fund-close" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body" id="stock-fund-body">
+        <div class="list-empty">加载中...</div>
+    </div>
+</div>
+
 <script src="app.js"></script>
 </body>
 </html>
