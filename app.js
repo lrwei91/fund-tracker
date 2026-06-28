@@ -40,7 +40,6 @@ const SHORT_CACHE_TTL = {
     capital: 5 * 60 * 1000,
     sector: 5 * 60 * 1000,
     news: 5 * 60 * 1000,
-    limitUp: 5 * 60 * 1000,
 };
 const MULTIDAY_FLOW_CACHE_KEY = 'fund_tracker_multiday_flow_cache';
 const DRAGON_TIGER_CACHE_KEY = 'fund_tracker_dragon_tiger_cache';
@@ -1273,19 +1272,26 @@ function writeFundFlowCache(date, data) {
 }
 
 // ---------- 市场热度 (a-stock-data v3.3 §10.2 同花顺热榜 + 东财人气榜) ----------
+// 日级持久 (跟龙虎榜/资金流卡片一致): cache key 按 source 拆开避免 ths/em 互相覆盖
 const HOT_RANK_SOURCE_KEY = 'fund_tracker_hot_rank_source';
-const HOT_RANK_CACHE_KEY = 'fund_tracker_hot_rank_cache';
-const HOT_RANK_TTL = 5 * 60 * 1000;
+const HOT_RANK_CACHE_THS_KEY = 'fund_tracker_hot_rank_ths_cache';
+const HOT_RANK_CACHE_EM_KEY = 'fund_tracker_hot_rank_em_cache';
+const HOT_RANK_TAB_HEADERS = { ths: '同花顺热榜', em: '东财人气榜' };
 
 function getActiveHotRankSource() {
     try { return localStorage.getItem(HOT_RANK_SOURCE_KEY) || 'ths'; } catch (e) { return 'ths'; }
 }
+function hotRankCacheKey(source) {
+    return source === 'em' ? HOT_RANK_CACHE_EM_KEY : HOT_RANK_CACHE_THS_KEY;
+}
 
 async function loadHotRankData(source) {
     source = source || 'ths';
-    var cached = readTimedCache(HOT_RANK_CACHE_KEY, HOT_RANK_TTL);
-    if (cached && cached.source === source && cached.items) {
-        renderHotRank(cached.items, source, false);
+    var todayKey = getShanghaiDateKey();
+    var cacheKey = hotRankCacheKey(source);
+    var cached = readDailyDataCache(cacheKey);
+    if (cached && cached.date === todayKey && cached.data && Array.isArray(cached.data.items)) {
+        renderHotRank(cached.data.items, source, false);
         return;
     }
     try {
@@ -1293,11 +1299,11 @@ async function loadHotRankData(source) {
         if (!res.ok) throw new Error('HTTP ' + res.status);
         var result = await res.json();
         if (!result.success || !result.data || !Array.isArray(result.data.items)) throw new Error('数据异常');
-        writeTimedCache(HOT_RANK_CACHE_KEY, { source: source, items: result.data.items });
+        writeDailyDataCache(cacheKey, todayKey, { source: source, items: result.data.items });
         renderHotRank(result.data.items, source, true);
     } catch (e) {
-        if (cached && cached.source === source && cached.items) {
-            renderHotRank(cached.items, source, false);
+        if (cached && cached.date === todayKey && cached.data && Array.isArray(cached.data.items)) {
+            renderHotRank(cached.data.items, source, false);
             return;
         }
         renderHotRankError(source);
@@ -1548,49 +1554,58 @@ async function loadLimitUpData(force) {
             ' · 昨涨停晋级率 ' + s.promoteRate + '%</div>';
     }
 
-    // 1) summary 永远先拉 (顶部卡片)
+    // 1) summary 永远先拉 (顶部卡片) — 日级持久 (跟龙虎榜/资金流卡片一致)
+    var todayKey = getShanghaiDateKey();
     var sumKey = SHORT_CACHE_KEYS.limitUpSummary;
-    var sumCached = readTimedCache(sumKey, SHORT_CACHE_TTL.limitUp);
-    if (sumCached) {
-        renderSummary(sumCached);
+    var sumCached = readDailyDataCache(sumKey);
+    if (sumCached && sumCached.date === todayKey && sumCached.data) {
+        renderSummary(sumCached.data);
     } else {
         try {
             var sumRes = await fetch(apiUrl('/limit-up', { type: 'summary' }));
             var sumJson = await sumRes.json();
             if (sumJson.success) {
-                writeTimedCache(sumKey, sumJson.data);
+                writeDailyDataCache(sumKey, todayKey, sumJson.data);
                 renderSummary(sumJson.data);
+            } else if (sumCached && sumCached.data) {
+                renderSummary(sumCached.data);
             }
         } catch (e) {
             console.error('异动 summary 获取失败:', e);
+            if (sumCached && sumCached.data) renderSummary(sumCached.data);
         }
     }
 
-    // 2) 当前 active type 拉详情
+    // 2) 当前 active type 拉详情 — 日级持久
     var typeCacheKey = ({
         zt:  SHORT_CACHE_KEYS.limitUpZt,
         zb:  SHORT_CACHE_KEYS.limitUpZb,
         dt:  SHORT_CACHE_KEYS.limitUpDt,
         yzt: SHORT_CACHE_KEYS.limitUpYzt,
     })[activeType];
-    var typeCached = readTimedCache(typeCacheKey, SHORT_CACHE_TTL.limitUp);
-    if (typeCached) {
-        renderItems(activeType, typeCached);
+    var typeCached = readDailyDataCache(typeCacheKey);
+    if (typeCached && typeCached.date === todayKey && typeCached.data) {
+        renderItems(activeType, typeCached.data);
     } else {
         list.innerHTML = '<div class="limit-up-empty">加载中...</div>';
         try {
             var r = await fetch(apiUrl('/limit-up', { type: activeType, limit: 30 }));
             var j = await r.json();
             if (j.success) {
-                writeTimedCache(typeCacheKey, j.data);
+                writeDailyDataCache(typeCacheKey, todayKey, j.data);
                 renderItems(activeType, j.data);
+            } else if (typeCached && typeCached.date === todayKey && typeCached.data) {
+                renderItems(activeType, typeCached.data);
             } else {
                 renderItems(activeType, null);
             }
         } catch (e) {
             console.error('异动' + activeType + '获取失败:', e);
-            if (typeCached) renderItems(activeType, typeCached);
-            else renderItems(activeType, null);
+            if (typeCached && typeCached.date === todayKey && typeCached.data) {
+                renderItems(activeType, typeCached.data);
+            } else {
+                renderItems(activeType, null);
+            }
         }
     }
     activateLimitUpTab(activeType);
