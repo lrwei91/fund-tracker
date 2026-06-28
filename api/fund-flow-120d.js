@@ -1,7 +1,7 @@
-// 自选股 120 日资金流（接 push2 fflow/daykline/get）— a-stock-data v3.0 §4.5
+// 自选股 120 日资金流（接 push2 fflow/daykline/get）
 // 取代项目"多日资金"卡片中"按当日数据假装多日"的旧实现
 // 注意:此接口为个股维度(非行业板块),更符合"自选股用户最关心我关注的几只股最近资金动向"的价值
-//   — 行业板块连续 N 日维度在 a-stock-data 中也仅给到个股端点,行业多日需要 N×N 次拉取(不可行)
+//   — 行业板块连续 N 日维度没有现成端点,行业多日需要 N×N 次拉取(不可行)
 
 const { API_TIMEOUTS, emGet, fail, fetchGbkText, ok } = require('./_utils');
 
@@ -132,7 +132,7 @@ module.exports = async function handler(req, res) {
 
         // 先拉一次腾讯 quote 拿名称(1 次 HTTP,失败 fallback 到空 name)
         const nameMap = await fetchNames(codes);
-        // 串行拉取(东财绝不开并发,参考 a-stock-data v3.2 防封铁律)
+        // 串行拉取(东财绝不开并发,防封铁律)
         const items = [];
         for (const code of codes) {
             try {

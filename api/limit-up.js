@@ -1,4 +1,4 @@
-// 打板层 — 涨停 / 炸板 / 跌停 / 昨涨停 四池 (a-stock-data v3.3 §8.1)
+// 打板层 — 涨停 / 炸板 / 跌停 / 昨涨停 四池
 //   走 push2ex.eastmoney.com, 与现有 push2 同源, 走 emGet 限流防封
 //   date 必须是交易日 (YYYYMMDD), 非交易日 data 返回 null
 // 端点统一参数: ut, dpt=wz.ztzt, Pageindex, pagesize, sort, date
