@@ -29,16 +29,21 @@ const SHORT_CACHE_KEYS = {
     sector: 'fund_tracker_sector_cache',
     newsJin10: 'fund_tracker_news_jin10_cache',
     newsEastmoney: 'fund_tracker_news_eastmoney_cache',
+    limitUpZt:  'fund_tracker_limit_up_zt_cache',
+    limitUpZb:  'fund_tracker_limit_up_zb_cache',
+    limitUpDt:  'fund_tracker_limit_up_dt_cache',
+    limitUpYzt: 'fund_tracker_limit_up_yzt_cache',
+    limitUpSummary: 'fund_tracker_limit_up_summary_cache',
 };
 const SHORT_CACHE_TTL = {
     index: 30 * 1000,
     capital: 5 * 60 * 1000,
     sector: 5 * 60 * 1000,
     news: 5 * 60 * 1000,
+    limitUp: 5 * 60 * 1000,
 };
 const MULTIDAY_FLOW_CACHE_KEY = 'fund_tracker_multiday_flow_cache';
 const DRAGON_TIGER_CACHE_KEY = 'fund_tracker_dragon_tiger_cache';
-const LOCKUP_CACHE_KEY = 'fund_tracker_lockup_cache';
 
 // ---------- Cache Keys ----------
 const WATCH_QUOTE_CACHE_KEY = 'fund_tracker_watch_quote_cache';
@@ -193,7 +198,7 @@ function switchTab(tab, updateHash) {
     if (tab === 'signals') {
         loadHotRankData(getActiveHotRankSource());
         loadDragonTigerData();
-        loadLockupData();
+        loadLimitUpData();
     }
     if (tab === 'news') loadNewsData();
 }
@@ -213,6 +218,7 @@ document.addEventListener('DOMContentLoaded', function () {
     initDataPanel();
     bindEvents();
     initStockFundFlowModal();
+    initLimitUpTabs();
     initAutoRefresh();
     renderCustomIndex();
     // 页面初始化:按市场阶段决定是否发请求
@@ -701,7 +707,7 @@ function loadIntradaySignalData() {
 
 function loadAfterCloseDailyData() {
     loadDragonTigerData();
-    loadLockupData();
+    loadLimitUpData();
     loadFundFlow120dData();
 }
 
@@ -976,7 +982,7 @@ function startDailyRefresh() {
         if (isAfterCloseDailyWindow()) {
             loadFundFlow120dData();
             loadDragonTigerData();
-            loadLockupData();
+            loadLimitUpData();
         }
     }, 30 * 60 * 1000);
 }
@@ -1006,7 +1012,7 @@ function manualRefreshAll() {
     loadSectorData();
     loadFundFlow120dData(true);
     loadDragonTigerData(true);
-    loadLockupData(true);
+    loadLimitUpData(true);
     loadHotRankData(getActiveHotRankSource());
     if (currentTab === 'news') loadNewsData();
     setLastUpdated('手动刷新');
@@ -1438,63 +1444,185 @@ async function loadDragonTigerData(force) {
     }
 }
 
-// ---------- 限售解禁 ----------
-async function loadLockupData(force) {
-    var container = document.getElementById('lockup-list');
-    if (!container) return;
-    var todayKey = getShanghaiDateKey();
-    var cached = readDailyDataCache(LOCKUP_CACHE_KEY);
+// ---------- 异动提醒 (打板层 4 池) — a-stock-data v3.3 §8 ----------
+const LIMIT_UP_TYPES = ['zt', 'zb', 'dt', 'yzt'];  // 涨停/炸板/跌停/昨涨停
+const LIMIT_UP_TAB_LABELS = { zt: '涨停', zb: '炸板', dt: '跌停', yzt: '昨涨停' };
+const LIMIT_UP_TAB_KEY = 'fund_tracker_limit_up_tab';
 
-    function renderLockup(data) {
-        if (!data || !data.items || data.items.length === 0) {
-            container.innerHTML = renderEmpty('暂无解禁数据');
-            return;
-        }
-
-        var items = data.items.slice(0, 15);
-        var html = '';
-        items.forEach(function (item) {
-            var ratioStr = (parseFloat(item.ratio) * 100).toFixed(2) + '%';
-            html += '<div class="lockup-item">';
-            html += '  <div class="lockup-stock-info"><div class="lockup-stock-name">' + escapeHtml(item.name || item.code) + '</div><div class="lockup-stock-code">' + escapeHtml(item.code) + '</div></div>';
-            html += '  <span class="lockup-type" title="' + escapeHtml(item.type) + '">' + escapeHtml(item.type) + '</span>';
-            html += '  <span class="lockup-date">' + escapeHtml(item.date) + '</span>';
-            html += '  <span class="lockup-ratio">' + escapeHtml(ratioStr) + '</span>';
-            html += '</div>';
-        });
-        if (html) container.innerHTML = html;
-    }
-
-    if (cached && cached.date === todayKey && cached.data) {
-        renderLockup(cached.data);
-        return;
-    }
-
-    if (!force && !isAfterCloseForDailyUpdate()) {
-        if (cached && cached.data) {
-            renderLockup(cached.data);
-            return;
-        }
-        container.innerHTML = renderEmpty('收盘后更新');
-        return;
-    }
-
+function getActiveLimitUpType() {
     try {
-        var res = await fetch(apiUrl('/lockup'));
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        var json = await res.json();
+        var t = localStorage.getItem(LIMIT_UP_TAB_KEY);
+        return LIMIT_UP_TYPES.indexOf(t) >= 0 ? t : 'zt';
+    } catch (e) { return 'zt'; }
+}
+function setActiveLimitUpType(t) {
+    try { localStorage.setItem(LIMIT_UP_TAB_KEY, t); } catch (e) {}
+}
 
-        if (!json.success || !json.data) throw new Error('数据异常');
-        writeDailyDataCache(LOCKUP_CACHE_KEY, todayKey, json.data);
-        renderLockup(json.data);
-    } catch (e) {
-        console.error('限售解禁获取失败:', e);
-        if (cached && cached.data) {
-            renderLockup(cached.data);
+async function loadLimitUpData(force) {
+    var list = document.getElementById('limit-up-list');
+    var summary = document.getElementById('limit-up-summary');
+    if (!list || !summary) return;
+    var activeType = getActiveLimitUpType();
+
+    function fmtYi(yuan) {
+        if (!yuan) return '0';
+        var abs = Math.abs(yuan);
+        var sign = yuan > 0 ? '+' : yuan < 0 ? '-' : '';
+        if (abs >= 1e8) return sign + (abs / 1e8).toFixed(2) + '亿';
+        if (abs >= 1e4) return sign + (abs / 1e4).toFixed(0) + '万';
+        return sign + abs.toFixed(0);
+    }
+    function fmtPct(p) {
+        if (typeof p !== 'number' || !p) return '--';
+        return (p > 0 ? '+' : '') + p.toFixed(2) + '%';
+    }
+    function cls(p) { return p > 0 ? 'positive' : p < 0 ? 'negative' : 'neutral'; }
+
+    function renderRow(type, item) {
+        var pct = item.pct || 0;
+        var pctC = cls(pct);
+        var nameCode = '<div class="limit-up-name-cell">' +
+            '<span class="limit-up-name">' + escapeHtml(item.name || item.code) + '</span>' +
+            '<span class="limit-up-code">' + escapeHtml(item.code) + '</span>' +
+            '</div>';
+        if (type === 'zt') {
+            return '<div class="limit-up-row">' +
+                nameCode +
+                '<span class="limit-up-pct ' + pctC + '">' + escapeHtml(fmtPct(pct)) + '</span>' +
+                '<span class="limit-up-stat">' + escapeHtml(item.ztStat || (item.limitDays + '板')) + '</span>' +
+                '<span class="limit-up-seal">' + escapeHtml(fmtYi(item.sealFund)) + '</span>' +
+                '<span class="limit-up-ind">' + escapeHtml(item.industry || '--') + '</span>' +
+            '</div>';
+        }
+        if (type === 'zb') {
+            return '<div class="limit-up-row">' +
+                nameCode +
+                '<span class="limit-up-pct ' + pctC + '">' + escapeHtml(fmtPct(pct)) + '</span>' +
+                '<span class="limit-up-stat">' + escapeHtml(item.ztStat || (item.breakTimes + '次开板')) + '</span>' +
+                '<span class="limit-up-seal">振幅' + (item.amplitude || 0).toFixed(2) + '%</span>' +
+                '<span class="limit-up-ind">' + escapeHtml(item.industry || '--') + '</span>' +
+            '</div>';
+        }
+        if (type === 'dt') {
+            return '<div class="limit-up-row">' +
+                nameCode +
+                '<span class="limit-up-pct ' + pctC + '">' + escapeHtml(fmtPct(pct)) + '</span>' +
+                '<span class="limit-up-stat">连续' + (item.dtDays || 0) + '板</span>' +
+                '<span class="limit-up-seal">封单' + escapeHtml(fmtYi(item.sealFund)) + '</span>' +
+                '<span class="limit-up-ind">' + escapeHtml(item.industry || '--') + '</span>' +
+            '</div>';
+        }
+        // yzt
+        return '<div class="limit-up-row">' +
+            nameCode +
+            '<span class="limit-up-pct ' + pctC + '">' + escapeHtml(fmtPct(pct)) + '</span>' +
+            '<span class="limit-up-stat">' + escapeHtml(item.ztStat || (item.yLimitDays + '板')) + '</span>' +
+            '<span class="limit-up-seal">涨速' + (item.speed || 0).toFixed(2) + '%</span>' +
+            '<span class="limit-up-ind">' + escapeHtml(item.industry || '--') + '</span>' +
+        '</div>';
+    }
+
+    function renderItems(type, data) {
+        if (!data || !Array.isArray(data.items) || data.items.length === 0) {
+            list.innerHTML = '<div class="limit-up-empty">暂无' + LIMIT_UP_TAB_LABELS[type] + '数据 (非交易日或接口暂不可用)</div>';
             return;
         }
-        container.innerHTML = renderEmpty('解禁数据加载失败');
+        list.innerHTML = data.items.slice(0, 30).map(function (it) { return renderRow(type, it); }).join('');
     }
+
+    function renderSummary(s) {
+        if (!s) { summary.innerHTML = ''; return; }
+        // 顶部: 涨停 N | 炸板 N (炸板率 X%) | 跌停 N | 昨涨停晋级率 X% | 最高 N 板 | 连板梯队
+        var ladder = s.ladder || {};
+        var ladderStr = Object.keys(ladder).sort(function (a, b) { return a - b; })
+            .map(function (k) { return k + '板' + ladder[k]; }).join(' / ') || '--';
+        summary.innerHTML =
+            '<div class="limit-up-stat-card">' +
+                '<div class="limit-up-stat-cell"><span class="limit-up-stat-label">涨停</span><span class="limit-up-stat-val positive">' + s.ztCount + '</span></div>' +
+                '<div class="limit-up-stat-cell"><span class="limit-up-stat-label">炸板</span><span class="limit-up-stat-val">' + s.zbCount + '<span class="limit-up-stat-sub"> ' + s.breakRate + '%</span></span></div>' +
+                '<div class="limit-up-stat-cell"><span class="limit-up-stat-label">跌停</span><span class="limit-up-stat-val negative">' + s.dtCount + '</span></div>' +
+                '<div class="limit-up-stat-cell"><span class="limit-up-stat-label">最高</span><span class="limit-up-stat-val">' + s.maxHeight + '板</span></div>' +
+            '</div>' +
+            '<div class="limit-up-stat-ladder">连板梯队: ' + escapeHtml(ladderStr) +
+            ' · 昨涨停晋级率 ' + s.promoteRate + '%</div>';
+    }
+
+    // 1) summary 永远先拉 (顶部卡片)
+    var sumKey = SHORT_CACHE_KEYS.limitUpSummary;
+    var sumCached = readTimedCache(sumKey, SHORT_CACHE_TTL.limitUp);
+    if (sumCached) {
+        renderSummary(sumCached);
+    } else {
+        try {
+            var sumRes = await fetch(apiUrl('/limit-up', { type: 'summary' }));
+            var sumJson = await sumRes.json();
+            if (sumJson.success) {
+                writeTimedCache(sumKey, sumJson.data);
+                renderSummary(sumJson.data);
+            }
+        } catch (e) {
+            console.error('异动 summary 获取失败:', e);
+        }
+    }
+
+    // 2) 当前 active type 拉详情
+    var typeCacheKey = ({
+        zt:  SHORT_CACHE_KEYS.limitUpZt,
+        zb:  SHORT_CACHE_KEYS.limitUpZb,
+        dt:  SHORT_CACHE_KEYS.limitUpDt,
+        yzt: SHORT_CACHE_KEYS.limitUpYzt,
+    })[activeType];
+    var typeCached = readTimedCache(typeCacheKey, SHORT_CACHE_TTL.limitUp);
+    if (typeCached) {
+        renderItems(activeType, typeCached);
+    } else {
+        list.innerHTML = '<div class="limit-up-empty">加载中...</div>';
+        try {
+            var r = await fetch(apiUrl('/limit-up', { type: activeType, limit: 30 }));
+            var j = await r.json();
+            if (j.success) {
+                writeTimedCache(typeCacheKey, j.data);
+                renderItems(activeType, j.data);
+            } else {
+                renderItems(activeType, null);
+            }
+        } catch (e) {
+            console.error('异动' + activeType + '获取失败:', e);
+            if (typeCached) renderItems(activeType, typeCached);
+            else renderItems(activeType, null);
+        }
+    }
+    activateLimitUpTab(activeType);
+}
+
+function activateLimitUpTab(type) {
+    var tab = document.querySelector('.limit-up-tab[data-type="' + type + '"]');
+    if (!tab) return;
+    var parent = tab.parentElement;
+    parent.querySelectorAll('.limit-up-tab').forEach(function (t) { t.classList.remove('active'); });
+    tab.classList.add('active');
+    var body = tab.closest('.card-body');
+    if (body) {
+        body.querySelectorAll('.limit-up-panel').forEach(function (p) { p.classList.remove('active'); });
+        var panel = body.querySelector('#limit-up-panel-' + type);
+        if (panel) panel.classList.add('active');
+    }
+}
+
+function initLimitUpTabs() {
+    var saved = getActiveLimitUpType();
+    activateLimitUpTab(saved);
+    var tabs = document.querySelectorAll('.limit-up-tab');
+    tabs.forEach(function (tab) {
+        tab.addEventListener('click', function () {
+            var t = tab.getAttribute('data-type');
+            if (!t || LIMIT_UP_TYPES.indexOf(t) < 0) return;
+            setActiveLimitUpType(t);
+            // 切换 tab 时按需加载 (cache 命中直接渲染,否则 fetch)
+            loadLimitUpData();
+        });
+    });
 }
 
 function readDailyDataCache(key) {

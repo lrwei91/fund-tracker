@@ -245,15 +245,23 @@
             </div>
         </section>
 
-        <!-- 3. 限售解禁 -->
-        <section class="card lockup-section" data-collapsible="true" data-collapsed="true">
+        <!-- 3. 异动提醒 (打板层 4 池 + 情绪摘要) — a-stock-data v3.3 §8 -->
+        <section class="card limit-up-section" data-collapsible="true" data-collapsed="true">
             <div class="card-header" role="button" tabindex="0">
-                <h2>限售解禁</h2>
+                <h2>异动提醒</h2>
+                <span class="limit-up-header-time" id="limit-up-time"></span>
                 <span class="collapse-icon">▼</span>
             </div>
             <div class="card-body">
-                <div class="lockup-list" id="lockup-list">
-                    <div class="lockup-empty">加载中...</div>
+                <div class="limit-up-summary" id="limit-up-summary"></div>
+                <div class="limit-up-tabs">
+                    <button class="limit-up-tab active" data-type="zt">涨停</button>
+                    <button class="limit-up-tab" data-type="zb">炸板</button>
+                    <button class="limit-up-tab" data-type="dt">跌停</button>
+                    <button class="limit-up-tab" data-type="yzt">昨涨停</button>
+                </div>
+                <div class="limit-up-list" id="limit-up-list">
+                    <div class="limit-up-empty">加载中...</div>
                 </div>
             </div>
         </section>

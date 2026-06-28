@@ -1419,79 +1419,153 @@ body {
 .dragon-tiger-net.positive { color: var(--red); }
 .dragon-tiger-net.negative { color: var(--green); }
 
-/* ---------- 限售解禁 ---------- */
-.lockup-list { }
-.lockup-empty {
+/* ---------- 异动提醒 (打板层 4 池) ---------- */
+.limit-up-header-time {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    margin-left: auto;
+    margin-right: 6px;
+    font-family: var(--mono);
+}
+.limit-up-summary {
+    margin-bottom: 8px;
+}
+.limit-up-stat-card {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+    margin-bottom: 6px;
+}
+.limit-up-stat-cell {
+    padding: 6px 4px;
+    text-align: center;
+    border-right: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+    font-family: var(--mono);
+}
+.limit-up-stat-cell:last-child { border-right: none; }
+.limit-up-stat-label {
+    display: block;
+    font-size: 9px;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-bottom: 2px;
+}
+.limit-up-stat-val {
+    display: block;
+    font-size: 15px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-primary);
+}
+.limit-up-stat-val.positive { color: var(--red); }
+.limit-up-stat-val.negative { color: var(--green); }
+.limit-up-stat-sub {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    font-weight: 400;
+    margin-left: 2px;
+}
+.limit-up-stat-ladder {
+    font-size: 10px;
+    color: var(--text-secondary);
+    font-family: var(--mono);
+    padding: 2px 0 6px 0;
+    line-height: 1.4;
+}
+.limit-up-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 6px;
+    border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+}
+.limit-up-tab {
+    background: transparent;
+    border: none;
+    padding: 5px 10px;
+    color: var(--text-tertiary);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
+}
+.limit-up-tab.active {
+    color: var(--text-primary);
+    border-bottom-color: var(--amber-soft, #ffb340);
+}
+.limit-up-tab:hover:not(.active) { color: var(--text-secondary); }
+.limit-up-list { }
+.limit-up-empty {
     text-align: center;
     padding: 14px 8px;
     color: var(--text-tertiary);
     font-size: 11px;
     font-family: var(--mono);
 }
-
-.lockup-item {
-    display: flex;
+.limit-up-row {
+    display: grid;
+    grid-template-columns: 1fr 56px 60px 76px 60px;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     padding: 6px 0;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+    font-family: var(--mono);
+    font-size: 11px;
 }
-
-.lockup-item:nth-child(even) {
-    background: var(--bg-row);
+.limit-up-row:nth-child(even) {
+    background: var(--bg-row, rgba(255, 255, 255, 0.04));
     margin: 0 -10px;
     padding-left: 10px;
     padding-right: 10px;
 }
-
-.lockup-item:last-child { border-bottom: none; }
-
-.lockup-stock-info {
-    flex: 0 1 76px;
+.limit-up-row:last-child { border-bottom: none; }
+.limit-up-name-cell {
+    display: flex;
+    flex-direction: column;
     min-width: 0;
+    line-height: 1.15;
 }
-
-.lockup-stock-name {
-    font-size: 12px;
-    font-weight: 600;
+.limit-up-name {
     color: var(--text-primary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 70px;
-}
-
-.lockup-stock-code {
-    font-size: 9px;
-    color: var(--text-tertiary);
-    font-family: var(--mono);
-}
-
-.lockup-type {
-    flex: 1;
-    font-size: 10px;
-    color: var(--text-secondary);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.lockup-date {
-    flex: 0 0 auto;
-    font-size: 11px;
     font-weight: 600;
-    color: var(--text-tertiary);
-    font-family: var(--mono);
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
 }
-
-.lockup-ratio {
-    flex: 0 0 auto;
-    font-size: 11px;
+.limit-up-code {
+    color: var(--text-tertiary);
+    font-size: 9px;
+}
+.limit-up-pct {
+    text-align: right;
     font-weight: 700;
-    color: var(--red);
-    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+}
+.limit-up-pct.positive { color: var(--red); }
+.limit-up-pct.negative { color: var(--green); }
+.limit-up-pct.neutral { color: var(--text-tertiary); }
+.limit-up-stat,
+.limit-up-seal {
+    text-align: right;
+    color: var(--text-secondary);
+    font-size: 10px;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
+}
+.limit-up-ind {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+@media (max-width: 480px) {
+    .limit-up-row { grid-template-columns: 1fr 48px 56px 64px; }
+    .limit-up-ind { display: none; }
 }
 
 /* ---------- 新闻来源 — Text Tabs ---------- */

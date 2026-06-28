@@ -8,7 +8,11 @@ const CASES = [
     ['stock', { codes: '600519,300750' }],
     ['stock-search', { q: '贵州茅台' }],
     ['dragon-tiger', {}],
-    ['lockup', {}],
+    ['limit-up', { type: 'zt' }],
+    ['limit-up', { type: 'zb' }],
+    ['limit-up', { type: 'dt' }],
+    ['limit-up', { type: 'yzt' }],
+    ['limit-up', { type: 'summary' }],
     ['global-news', {}],
     ['news', {}],
     ['fund-flow-120d', { codes: '600519,300750', days: 60 }],
@@ -71,6 +75,13 @@ function hasNonEmptyPayload(name, query, data) {
     }
     if (name === 'global-news') {
         return Boolean(data && Array.isArray(data.data) && data.data.length && (data.data[0].title || data.data[0].summary));
+    }
+    if (name === 'limit-up' && query.type === 'summary') {
+        return Boolean(data && typeof data.ztCount === 'number' && typeof data.breakRate === 'number');
+    }
+    if (name === 'limit-up') {
+        return Boolean(data && Array.isArray(data.items) && data.items.length
+            && data.items[0].code && data.items[0].name);
     }
     if (name === 'fund-flow-120d') {
         var first = data && data.items && data.items[0];
