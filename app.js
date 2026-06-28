@@ -1154,16 +1154,20 @@ async function loadFundFlow120dData(force) {
 
         rowsEl.innerHTML = items.map(function (it) {
             if (it.error || !it.summary) {
-                return '<tr><td class="sector-name-cell fund-flow-name-cell">' +
-                    '<span class="fund-flow-name">' + escapeHtml(it.name || it.code) + '</span>' +
-                    (it.name ? '<span class="fund-flow-code">' + escapeHtml(it.code) + '</span>' : '') +
+                return '<tr><td class="sector-name-cell">' +
+                    '<div class="watchlist-item-main">' +
+                        '<div class="watchlist-stock-name">' + escapeHtml(it.name || it.code) + '</div>' +
+                        (it.name ? '<div class="watchlist-stock-code">' + escapeHtml(it.code) + '</div>' : '') +
+                    '</div>' +
                     '</td>' +
                     '<td colspan="4" class="list-empty">' + escapeHtml(it.error || '暂无数据') + '</td></tr>';
             }
             return '<tr>' +
-                '<td class="sector-name-cell fund-flow-name-cell">' +
-                    '<span class="fund-flow-name">' + escapeHtml(it.name || it.code) + '</span>' +
-                    (it.name ? '<span class="fund-flow-code">' + escapeHtml(it.code) + '</span>' : '') +
+                '<td class="sector-name-cell">' +
+                    '<div class="watchlist-item-main">' +
+                        '<div class="watchlist-stock-name">' + escapeHtml(it.name || it.code) + '</div>' +
+                        (it.name ? '<div class="watchlist-stock-code">' + escapeHtml(it.code) + '</div>' : '') +
+                    '</div>' +
                 '</td>' +
                 '<td class="' + cls(it.summary.main_5d) + '">' + fmtYuan(it.summary.main_5d) + '</td>' +
                 '<td class="' + cls(it.summary.main_20d) + '">' + fmtYuan(it.summary.main_20d) + '</td>' +

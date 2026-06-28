@@ -2030,21 +2030,6 @@ body {
     font-weight: 700;
     color: var(--text-primary);
 }
-.fund-flow-name-cell {
-    display: flex;
-    flex-direction: column;
-    line-height: 1.2;
-}
-.fund-flow-name-cell .fund-flow-name {
-    font-size: 12px;
-    font-weight: 700;
-}
-.fund-flow-name-cell .fund-flow-code {
-    font-size: 10px;
-    color: var(--text-tertiary);
-    font-family: var(--mono);
-    margin-top: 1px;
-}
 .fund-flow-trend {
     font-size: 14px;
     letter-spacing: 1px;
