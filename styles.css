@@ -1032,6 +1032,7 @@ body {
     background: rgba(0, 0, 0, 0.55);
     z-index: 200;
 }
+.modal-overlay[hidden] { display: none !important; }
 .modal-panel {
     position: fixed;
     top: 50%;
@@ -1046,6 +1047,9 @@ body {
     display: flex;
     flex-direction: column;
 }
+/* 关键: [hidden] 属性默认是 display:none, 但上面 .modal-panel 的 display:flex 会覆盖它,
+   所以默认就显示出来、关闭也关不掉. 强制优先级让 hidden 真正生效 */
+.modal-panel[hidden] { display: none !important; }
 .modal-header {
     display: flex;
     align-items: center;
