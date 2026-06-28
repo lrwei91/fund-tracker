@@ -140,22 +140,23 @@
             </div>
         </section>
 
-        <!-- 4. 板块排行 -->
+        <!-- 4. 板块排行 (diverging bar chart) -->
         <section class="card sector-section" data-collapsible="true">
             <div class="card-header" role="button" tabindex="0">
                 <h2>板块排行</h2>
+                <span class="sector-header-time" id="sector-update-time"></span>
                 <span class="collapse-icon">▼</span>
             </div>
             <div class="card-body">
-                <div class="sector-tabs">
-                    <button class="sector-tab active" data-tab="inflow">流入</button>
-                    <button class="sector-tab" data-tab="outflow">流出</button>
-                </div>
-                <div class="sector-panel active" id="sector-panel-inflow">
-                    <ul id="inflow-sectors" class="sector-list"></ul>
-                </div>
-                <div class="sector-panel" id="sector-panel-outflow">
-                    <ul id="outflow-sectors" class="sector-list"></ul>
+                <div class="sector-chart">
+                    <div class="sector-chart-group">
+                        <h4 class="sector-group-title">资金流入 TOP5</h4>
+                        <div class="sector-bars" id="sector-bars-inflow"></div>
+                    </div>
+                    <div class="sector-chart-group">
+                        <h4 class="sector-group-title">资金流出 TOP5</h4>
+                        <div class="sector-bars" id="sector-bars-outflow"></div>
+                    </div>
                 </div>
             </div>
         </section>

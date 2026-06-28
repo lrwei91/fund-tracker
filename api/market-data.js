@@ -64,6 +64,7 @@ async function loadSector() {
     const mapRow = (row) => ({
         name: row.name,
         value: formatYi(row.mainFundYuan),
+        mainFundYuan: row.mainFundYuan,  // 原始数值,前端 bar 长度归一化用
         changePct: row.changePct,
         leader: row.leader,
     });

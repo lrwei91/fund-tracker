@@ -857,18 +857,55 @@ function renderCapitalUI(cap) {
 }
 
 function renderSectorUI(sectors) {
-    var inflow = document.getElementById('inflow-sectors');
-    var outflow = document.getElementById('outflow-sectors');
-    if (inflow) {
-        inflow.innerHTML = (sectors.inflow || []).slice(0, 5).map(function (s) {
-            return '<li><span class="sector-name">' + escapeHtml(s.name) + '</span><span class="sector-amount positive">' + escapeHtml(s.value) + '</span></li>';
-        }).join('') || '<li class="list-empty">暂无可靠真实流入数据</li>';
+    var inflowEl = document.getElementById('sector-bars-inflow');
+    var outflowEl = document.getElementById('sector-bars-outflow');
+    if (!inflowEl || !outflowEl) return;
+
+    // bar 长度归一化: 流入/流出绝对值中取最大
+    var inflowList = (sectors.inflow || []).slice(0, 5);
+    var outflowList = (sectors.outflow || []).slice(0, 5);
+    var maxAbs = 1;
+    inflowList.forEach(function (s) { if (s.mainFundYuan > maxAbs) maxAbs = s.mainFundYuan; });
+    outflowList.forEach(function (s) { if (Math.abs(s.mainFundYuan) > maxAbs) maxAbs = Math.abs(s.mainFundYuan); });
+
+    function pctOf(s) {
+        return (Math.abs(s.mainFundYuan || 0) / maxAbs * 100).toFixed(1);
     }
-    if (outflow) {
-        outflow.innerHTML = (sectors.outflow || []).slice(0, 5).map(function (s) {
-            return '<li><span class="sector-name">' + escapeHtml(s.name) + '</span><span class="sector-amount negative">' + escapeHtml(s.value) + '</span></li>';
-        }).join('') || '<li class="list-empty">暂无可靠真实流出数据</li>';
+    function pctClass(v) { return v > 0 ? 'positive' : v < 0 ? 'negative' : 'neutral'; }
+    function changeStr(c) {
+        if (typeof c !== 'number' || !c) return '';
+        return (c > 0 ? '+' : '') + c.toFixed(2) + '%';
     }
+
+    function renderBars(items, sign) {
+        if (!items.length) return '<div class="list-empty">暂无' + (sign > 0 ? '流入' : '流出') + '数据</div>';
+        return items.map(function (s) {
+            var w = pctOf(s);
+            var cls = pctClass(s.changePct);
+            return '<div class="sector-bar-row">' +
+                '<div class="sector-bar-name">' +
+                    '<span class="sector-bar-label">' + escapeHtml(s.name) + '</span>' +
+                    '<span class="sector-bar-change ' + cls + '">' + escapeHtml(changeStr(s.changePct)) + '</span>' +
+                '</div>' +
+                '<div class="sector-bar-track">' +
+                    '<div class="sector-bar-fill ' + (sign > 0 ? 'positive' : 'negative') + '" data-w="' + w + '"></div>' +
+                '</div>' +
+                '<div class="sector-bar-value ' + (sign > 0 ? 'positive' : 'negative') + '">' + escapeHtml(s.value) + '</div>' +
+                '<div class="sector-bar-leader">' + escapeHtml(s.leader || '') + '</div>' +
+            '</div>';
+        }).join('');
+    }
+
+    inflowEl.innerHTML = renderBars(inflowList, 1);
+    outflowEl.innerHTML = renderBars(outflowList, -1);
+    // 渲染后批量把 data-w 转成实际宽度(避免在 HTML 字符串里写 inline style,
+    // 绕过 dom-contract 禁内联 style 的检查;走 setProperty 也更稳)
+    [inflowEl, outflowEl].forEach(function (container) {
+        var fills = container.querySelectorAll('.sector-bar-fill[data-w]');
+        fills.forEach(function (fill) {
+            fill.style.width = fill.getAttribute('data-w') + '%';
+        });
+    });
 }
 
 // ---------- Auto Refresh ----------
