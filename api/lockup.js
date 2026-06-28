@@ -1,11 +1,11 @@
-const { fail, fetchJson, ok } = require('./_utils');
+const { emGet, fail, ok } = require('./_utils');
 
 module.exports = async function handler(req, res) {
     try {
         const today = new Date().toISOString().slice(0, 10);
         const filter = encodeURIComponent(`(FREE_DATE>='${today}')`);
         const url = `https://datacenter-web.eastmoney.com/api/data/v1/get?sortColumns=FREE_DATE&sortTypes=1&pageSize=15&pageNumber=1&reportName=RPT_LIFT_STAGE&columns=ALL&filter=${filter}`;
-        const json = await fetchJson(url);
+        const json = await emGet(url);
         const rows = json && json.result && json.result.data;
         const items = (rows || []).map((row) => ({
             code: row.SECURITY_CODE,

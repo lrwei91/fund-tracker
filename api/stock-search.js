@@ -1,4 +1,4 @@
-const { fail, fetchJson, ok } = require('./_utils');
+const { emGet, fail, ok } = require('./_utils');
 
 module.exports = async function handler(req, res) {
     const query = String(req.query.q || '').trim();
@@ -6,7 +6,7 @@ module.exports = async function handler(req, res) {
 
     try {
         const url = `https://searchapi.eastmoney.com/api/suggest/get?input=${encodeURIComponent(query)}&type=14&token=44c9d251add88e27b65ed86506f6e5da&count=8`;
-        const json = await fetchJson(url);
+        const json = await emGet(url);
         const rows = json && json.QuotationCodeTable && json.QuotationCodeTable.Data;
         const data = (rows || [])
             .filter((row) => row && row.Code && row.Name && row.SecurityTypeName && row.SecurityTypeName.includes('A'))

@@ -1,4 +1,5 @@
 const {
+    emGet,
     fail,
     fetchGbkText,
     fetchJson,
@@ -141,7 +142,7 @@ async function loadMarketMainFund() {
         fs: eastmoneyMarketFs(),
         fields: 'f12,f14,f62',
     });
-    const json = await fetchJson(`https://push2.eastmoney.com/api/qt/clist/get?${params.toString()}`, {
+    const json = await emGet(`https://push2.eastmoney.com/api/qt/clist/get?${params.toString()}`, {
         headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125 Safari/537.36',
             Referer: 'https://quote.eastmoney.com/',
@@ -210,7 +211,7 @@ async function loadIndustryRows() {
         fs: 'm:90+t:2',
         fields: 'f3,f12,f14,f62,f104,f105,f136,f140',
     });
-    const json = await fetchJson(`https://push2.eastmoney.com/api/qt/clist/get?${params.toString()}`, {
+    const json = await emGet(`https://push2.eastmoney.com/api/qt/clist/get?${params.toString()}`, {
         headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125 Safari/537.36',
             Referer: 'https://quote.eastmoney.com/center/boardlist.html',
