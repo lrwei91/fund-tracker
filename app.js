@@ -1107,7 +1107,10 @@ async function loadSectorData() {
 }
 
 // ---------- 自选股 120 日资金流 (a-stock-data v3.0 §4.5;取代旧"多日资金"卡) ----------
-const FUND_FLOW_CACHE_KEY = 'fund_tracker_fund_flow_cache';
+// cache key 升 v2 是因为新代码的 item 多了 name 字段(从腾讯 quote 批量 join),
+// 旧 cache 残留的 item 没有 name,会被前端渲染成只显示代码的单行,看起来"对不齐"。
+// 升版本号让旧 cache 自然失效,触发用户侧一次重新拉取。
+const FUND_FLOW_CACHE_KEY = 'fund_tracker_fund_flow_cache_v2';
 
 async function loadFundFlow120dData(force) {
     function renderEmpty(message) {
@@ -1153,11 +1156,14 @@ async function loadFundFlow120dData(force) {
         }
 
         rowsEl.innerHTML = items.map(function (it) {
+            // 即使 name 为空也要渲染 code 一行(老 cache 兼容);name 行用 code 兜底
+            var displayName = it.name || it.code;
+            var displayCode = it.code;
             if (it.error || !it.summary) {
                 return '<tr><td class="sector-name-cell">' +
                     '<div class="watchlist-item-main">' +
-                        '<div class="watchlist-stock-name">' + escapeHtml(it.name || it.code) + '</div>' +
-                        (it.name ? '<div class="watchlist-stock-code">' + escapeHtml(it.code) + '</div>' : '') +
+                        '<div class="watchlist-stock-name">' + escapeHtml(displayName) + '</div>' +
+                        '<div class="watchlist-stock-code">' + escapeHtml(displayCode) + '</div>' +
                     '</div>' +
                     '</td>' +
                     '<td colspan="4" class="list-empty">' + escapeHtml(it.error || '暂无数据') + '</td></tr>';
@@ -1165,8 +1171,8 @@ async function loadFundFlow120dData(force) {
             return '<tr>' +
                 '<td class="sector-name-cell">' +
                     '<div class="watchlist-item-main">' +
-                        '<div class="watchlist-stock-name">' + escapeHtml(it.name || it.code) + '</div>' +
-                        (it.name ? '<div class="watchlist-stock-code">' + escapeHtml(it.code) + '</div>' : '') +
+                        '<div class="watchlist-stock-name">' + escapeHtml(displayName) + '</div>' +
+                        '<div class="watchlist-stock-code">' + escapeHtml(displayCode) + '</div>' +
                     '</div>' +
                 '</td>' +
                 '<td class="' + cls(it.summary.main_5d) + '">' + fmtYuan(it.summary.main_5d) + '</td>' +
@@ -1777,9 +1783,11 @@ function renderWatchTabs() {
 function switchWatchTab(tabId) {
     if (!tabId || tabId === activeWatchTabId) return;
     activeWatchTabId = tabId;
-    localStorage.setItem(ACTIVE_WATCH_TAB_KEY, activeWatchTabId);
+    localStorage.setItem(ACTIVE_WATCH_TAB_KEY, tabId);
     renderWatchTabs();
     renderWatchlist();
+    // 切自选股分组后,资金流卡片对应的是当前分组的代码,重拉一次
+    loadFundFlow120dData(true);
 }
 
 function initWatchTabScroller() {
@@ -1909,6 +1917,8 @@ async function addStockToWatchlist() {
         showWatchStatus((match.name || code) + ' 已添加');
         renderWatchlist();
         loadSingleWatchQuote(code);
+        // 资金流卡片包含自选股列表,加股后立刻重拉(force=true 绕过 cache)
+        loadFundFlow120dData(true);
     } catch (e) {
         showWatchStatus(e.message || '没有找到匹配股票', 'error');
     } finally {
@@ -1930,6 +1940,8 @@ function removeStockFromWatchlist(code) {
     }
     renderWatchlist();
     showWatchStatus('已移除');
+    // 资金流卡片跟着自选股列表,删股后立刻重拉
+    loadFundFlow120dData(true);
 }
 
 function showWatchStatus(msg, type) {
