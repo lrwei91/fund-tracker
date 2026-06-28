@@ -188,9 +188,12 @@ function switchTab(tab, updateHash) {
 
     // Load tab-specific data when switching panels.
     if (tab === 'signals') {
-        loadMultiDayFlowData();
+        loadFundFlow120dData();
         loadDragonTigerData();
         loadLockupData();
+    }
+    if (tab === 'dashboard') {
+        loadHotRankData(getActiveHotRankSource());
     }
     if (tab === 'news') loadNewsData();
 }
@@ -201,6 +204,7 @@ document.addEventListener('DOMContentLoaded', function () {
     initTabs();
     initCollapsible();
     initSectorTabs();
+    initHotRankTabs();
     initWatchlistTabs();
     initNewsSourceTabs();
     initNewsScroll();
@@ -697,6 +701,7 @@ function loadIntradaySignalData() {
 function loadAfterCloseDailyData() {
     loadDragonTigerData();
     loadLockupData();
+    loadFundFlow120dData();
 }
 
 // 页面初始化时按市场阶段分支:
@@ -711,7 +716,7 @@ function loadInitialDataByMarketPhase() {
 
     if (isAfterCloseDailyWindow()) {
         loadAfterCloseDailyData();
-        loadMultiDayFlowData();
+        loadHotRankData(getActiveHotRankSource());
         renderRealtimeFromCache();
         return;
     }
@@ -929,7 +934,7 @@ function startDailyRefresh() {
     refreshIntervalDaily = setInterval(function () {
         // 收盘后窗口（16:00 起）触发日级数据刷新
         if (isAfterCloseDailyWindow()) {
-            loadMultiDayFlowData();
+            loadFundFlow120dData();
             loadDragonTigerData();
             loadLockupData();
         }
@@ -945,7 +950,8 @@ function loadAllData() {
     loadIntradayData();
     loadIntradaySignalData();
     loadAfterCloseDailyData();
-    loadMultiDayFlowData();
+    loadFundFlow120dData();
+    loadHotRankData(getActiveHotRankSource());
     hasInitialDataLoaded = true;
     // News is loaded on tab switch
     if (currentTab === 'news') loadNewsData();
@@ -958,9 +964,10 @@ function manualRefreshAll() {
     loadWatchlistData();
     loadCapitalData();
     loadSectorData();
-    loadMultiDayFlowData(true);
+    loadFundFlow120dData(true);
     loadDragonTigerData(true);
     loadLockupData(true);
+    loadHotRankData(getActiveHotRankSource());
     if (currentTab === 'news') loadNewsData();
     setLastUpdated('手动刷新');
 }
@@ -1099,91 +1106,212 @@ async function loadSectorData() {
     renderSectorUI(liveSectorData);
 }
 
-// ---------- 多日资金流向 ----------
-async function loadMultiDayFlowData(force) {
-    var todayKey = getShanghaiDateKey();
-    var cached = readMultiDayFlowCache();
+// ---------- 自选股 120 日资金流 (a-stock-data v3.0 §4.5;取代旧"多日资金"卡) ----------
+const FUND_FLOW_CACHE_KEY = 'fund_tracker_fund_flow_cache';
 
-    function renderTableMessage(id, message) {
-        var table = document.getElementById(id);
-        if (!table) return;
-        table.innerHTML = '<tr><td class="list-empty">' + escapeHtml(message) + '</td></tr>';
+async function loadFundFlow120dData(force) {
+    function renderEmpty(message) {
+        var emptyEl = document.getElementById('fund-flow-empty');
+        var tableEl = document.getElementById('fund-flow-table');
+        if (emptyEl) { emptyEl.textContent = message; emptyEl.hidden = false; }
+        if (tableEl) tableEl.hidden = true;
     }
 
-    function renderFlow(flow) {
-        function renderTable(id, sectors, trendUp) {
-            var table = document.getElementById(id);
-            if (!table) return;
-            table.innerHTML = '<tr><th>板块</th>' + (flow.dates || []).map(function (d) { return '<th>' + escapeHtml(d) + '</th>'; }).join('') + '<th>趋势</th></tr>';
-            sectors.forEach(function (s) {
-                var rowClass = s.consecutiveDays >= 3 ? (trendUp ? 'hot-sector' : 'cold-sector') : '';
-                var html = '';
-                html += '<td class="sector-name-cell">' + escapeHtml(s.name) + '</td>';
-                s.data.forEach(function (v) { html += '<td class="' + (v[0] === '+' ? 'flow-positive' : 'flow-negative') + '">' + escapeHtml(v) + '</td>'; });
-                var badge = s.consecutiveDays >= 3 ? '<span class="consecutive-badge' + (trendUp ? '' : ' outflow') + '">连续' + s.consecutiveDays + '日</span>' : '';
-                table.innerHTML += '<tr class="' + rowClass + '">' + html + '<td class="trend-cell">' + (s.trend === 'up' ? '↗' : '↘') + ' ' + badge + '</td></tr>';
-            });
+    function renderRows(items) {
+        var emptyEl = document.getElementById('fund-flow-empty');
+        var tableEl = document.getElementById('fund-flow-table');
+        var rowsEl = document.getElementById('fund-flow-rows');
+        if (!rowsEl) return;
+        if (emptyEl) emptyEl.hidden = true;
+        if (tableEl) tableEl.hidden = false;
+
+        function fmtYuan(yuan) {
+            if (!yuan) return '0';
+            var abs = Math.abs(yuan);
+            var sign = yuan > 0 ? '+' : yuan < 0 ? '-' : '';
+            if (abs >= 1e8) return sign + (abs / 1e8).toFixed(2) + '亿';
+            if (abs >= 1e4) return sign + (abs / 1e4).toFixed(0) + '万';
+            return sign + abs.toFixed(0);
+        }
+        function cls(v) { return v > 0 ? 'flow-positive' : v < 0 ? 'flow-negative' : 'flow-neutral'; }
+
+        // 趋势条:每根 ▁▂▃▄▅▆▇█ 按主力量级映射(正向红/负向绿配色由 css 控制)
+        var bars = [' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇'];
+        function trendHtml(recent) {
+            return (recent || []).map(function (r) {
+                var abs = Math.abs(r.mainNet || 0);
+                var level = 0;
+                if (abs > 5e8) level = 7;
+                else if (abs > 2e8) level = 6;
+                else if (abs > 1e8) level = 5;
+                else if (abs > 5e7) level = 4;
+                else if (abs > 1e7) level = 3;
+                else if (abs > 1e6) level = 2;
+                else if (abs > 0) level = 1;
+                return '<span class="' + cls(r.mainNet) + '" title="' + escapeHtml(r.date) + ' ' + fmtYuan(r.mainNet) + '">' + bars[level] + '</span>';
+            }).join('');
         }
 
-        if (!(flow.inflowSectors || []).length && !(flow.outflowSectors || []).length) {
-            renderTableMessage('multiday-inflow', '暂无可靠真实多日资金数据');
-            renderTableMessage('multiday-outflow', '暂无可靠真实多日资金数据');
-            return;
-        }
-        renderTable('multiday-inflow', flow.inflowSectors || [], true);
-        renderTable('multiday-outflow', flow.outflowSectors || [], false);
+        rowsEl.innerHTML = items.map(function (it) {
+            if (it.error || !it.summary) {
+                return '<tr><td class="sector-name-cell">' + escapeHtml(it.code) + '</td>' +
+                    '<td colspan="4" class="list-empty">' + escapeHtml(it.error || '暂无数据') + '</td></tr>';
+            }
+            return '<tr>' +
+                '<td class="sector-name-cell"><span class="fund-flow-name">' + escapeHtml(it.code) + '</span></td>' +
+                '<td class="' + cls(it.summary.main_5d) + '">' + fmtYuan(it.summary.main_5d) + '</td>' +
+                '<td class="' + cls(it.summary.main_20d) + '">' + fmtYuan(it.summary.main_20d) + '</td>' +
+                '<td class="' + cls(it.summary.main_60d) + '">' + fmtYuan(it.summary.main_60d) + '</td>' +
+                '<td class="trend-cell fund-flow-trend">' + trendHtml(it.recent) + '</td>' +
+            '</tr>';
+        }).join('');
     }
 
-    if (cached && cached.date === todayKey && cached.data) {
-        renderFlow(cached.data);
+    var codes = getWatchlist();
+    if (!codes || !codes.length) {
+        renderEmpty('添加自选股后查看资金流');
         return;
     }
 
-    if (!force && !isAfterCloseForDailyUpdate()) {
-        if (cached && cached.data) {
-            renderFlow(cached.data);
-            return;
-        }
-        renderTableMessage('multiday-inflow', '收盘后更新');
-        renderTableMessage('multiday-outflow', '收盘后更新');
+    var todayKey = getShanghaiDateKey();
+    var cached = readFundFlowCache();
+    if (cached && cached.date === todayKey && cached.data) {
+        renderRows(cached.data);
         return;
     }
 
     try {
-        var res = await fetch(apiUrl('/market-data', { type: 'multiday-flow' }));
+        var res = await fetch(apiUrl('/fund-flow-120d', { codes: codes.join(','), days: 60 }));
         if (!res.ok) throw new Error('HTTP ' + res.status);
         var result = await res.json();
-        if (!result.success || !result.data || !result.data.dates) throw new Error('数据异常');
-        var flow = result.data;
-        writeMultiDayFlowCache(todayKey, flow);
-        renderFlow(flow);
+        if (!result.success || !result.data || !Array.isArray(result.data.items)) throw new Error('数据异常');
+        writeFundFlowCache(todayKey, result.data.items);
+        renderRows(result.data.items);
     } catch (e) {
         if (cached && cached.data) {
-            renderFlow(cached.data);
+            renderRows(cached.data);
             return;
         }
-        renderTableMessage('multiday-inflow', '暂无可靠真实多日资金数据');
-        renderTableMessage('multiday-outflow', '暂无可靠真实多日资金数据');
+        renderEmpty('资金流接口暂不可用');
     }
 }
 
-function readMultiDayFlowCache() {
-    try {
-        return JSON.parse(localStorage.getItem(MULTIDAY_FLOW_CACHE_KEY) || 'null');
-    } catch (e) {
-        return null;
-    }
+function readFundFlowCache() {
+    try { return JSON.parse(localStorage.getItem(FUND_FLOW_CACHE_KEY) || 'null'); } catch (e) { return null; }
 }
-
-function writeMultiDayFlowCache(date, data) {
+function writeFundFlowCache(date, data) {
     try {
-        localStorage.setItem(MULTIDAY_FLOW_CACHE_KEY, JSON.stringify({
-            date: date,
-            data: data,
-            updatedAt: new Date().toISOString(),
+        localStorage.setItem(FUND_FLOW_CACHE_KEY, JSON.stringify({
+            date: date, data: data, updatedAt: new Date().toISOString(),
         }));
+    } catch (e) { /* ignore */ }
+}
+
+// ---------- 市场热度 (a-stock-data v3.3 §10.2 同花顺热榜 + 东财人气榜) ----------
+const HOT_RANK_SOURCE_KEY = 'fund_tracker_hot_rank_source';
+const HOT_RANK_CACHE_KEY = 'fund_tracker_hot_rank_cache';
+const HOT_RANK_TTL = 5 * 60 * 1000;
+
+function getActiveHotRankSource() {
+    try { return localStorage.getItem(HOT_RANK_SOURCE_KEY) || 'ths'; } catch (e) { return 'ths'; }
+}
+
+async function loadHotRankData(source) {
+    source = source || 'ths';
+    var cached = readTimedCache(HOT_RANK_CACHE_KEY, HOT_RANK_TTL);
+    if (cached && cached.source === source && cached.items) {
+        renderHotRank(cached.items, source, false);
+        return;
+    }
+    try {
+        var res = await fetch(apiUrl('/hot-rank', { source: source, limit: 20 }));
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        var result = await res.json();
+        if (!result.success || !result.data || !Array.isArray(result.data.items)) throw new Error('数据异常');
+        writeTimedCache(HOT_RANK_CACHE_KEY, { source: source, items: result.data.items });
+        renderHotRank(result.data.items, source, true);
     } catch (e) {
-        // Ignore storage failures; the live data has already rendered.
+        if (cached && cached.source === source && cached.items) {
+            renderHotRank(cached.items, source, false);
+            return;
+        }
+        renderHotRankError(source);
+    }
+}
+
+function renderHotRank(items, source, fresh) {
+    var listId = source === 'em' ? 'hot-rank-list-em' : 'hot-rank-list-ths';
+    var listEl = document.getElementById(listId);
+    var timeEl = document.getElementById('hot-rank-update-time');
+    if (!listEl) return;
+    if (!items.length) { listEl.innerHTML = '<li class="list-empty">暂无数据</li>'; return; }
+    if (timeEl && fresh) {
+        timeEl.textContent = '更新 ' + formatShanghaiTime(new Date().toISOString());
+    }
+    listEl.innerHTML = items.slice(0, 20).map(function (it) {
+        var pctStr = (it.pct > 0 ? '+' : '') + it.pct.toFixed(2) + '%';
+        var pctCls = it.pct > 0 ? 'positive' : it.pct < 0 ? 'negative' : 'neutral';
+        var chgArrow = it.rankChg > 0 ? '↑' + it.rankChg : it.rankChg < 0 ? '↓' + (-it.rankChg) : '-';
+        var chgCls = it.rankChg > 0 ? 'positive' : it.rankChg < 0 ? 'negative' : 'neutral';
+        if (source === 'ths') {
+            // 同花顺热榜:排名/名称/涨幅/人气/排名变化/概念标签
+            var concepts = (it.concepts || []).slice(0, 2)
+                .map(function (c) { return '<span class="hot-rank-concept">' + escapeHtml(c) + '</span>'; }).join('');
+            var tag = it.tag ? '<span class="hot-rank-tag">' + escapeHtml(it.tag) + '</span>' : '';
+            return '<li class="hot-rank-item">' +
+                '<span class="hot-rank-rank">' + it.rank + '</span>' +
+                '<span class="hot-rank-stock"><span class="hot-rank-name">' + escapeHtml(it.name) + '</span><span class="hot-rank-code">' + escapeHtml(it.code) + '</span></span>' +
+                '<span class="hot-rank-pct ' + pctCls + '">' + pctStr + '</span>' +
+                '<span class="hot-rank-heat">人气 ' + it.heat + '</span>' +
+                '<span class="hot-rank-chg ' + chgCls + '">' + chgArrow + '</span>' +
+                '<span class="hot-rank-concepts">' + concepts + tag + '</span>' +
+            '</li>';
+        } else {
+            // 东财人气榜:排名/名称/价格/涨幅/排名变化
+            var priceStr = (it.price !== null && it.price !== undefined) ? Number(it.price).toFixed(2) : '--';
+            return '<li class="hot-rank-item">' +
+                '<span class="hot-rank-rank">' + it.rank + '</span>' +
+                '<span class="hot-rank-stock"><span class="hot-rank-name">' + escapeHtml(it.name) + '</span><span class="hot-rank-code">' + escapeHtml(it.code) + '</span></span>' +
+                '<span class="hot-rank-price">' + priceStr + '</span>' +
+                '<span class="hot-rank-pct ' + pctCls + '">' + pctStr + '</span>' +
+                '<span class="hot-rank-chg ' + chgCls + '">' + chgArrow + '</span>' +
+            '</li>';
+        }
+    }).join('');
+}
+
+function renderHotRankError(source) {
+    var listId = source === 'em' ? 'hot-rank-list-em' : 'hot-rank-list-ths';
+    var listEl = document.getElementById(listId);
+    if (listEl) listEl.innerHTML = '<li class="list-empty">市场热度接口暂不可用</li>';
+}
+
+function initHotRankTabs() {
+    var saved = getActiveHotRankSource();
+    activateHotRankTab(saved);
+    var tabs = document.querySelectorAll('.hot-rank-tab');
+    tabs.forEach(function (tab) {
+        tab.addEventListener('click', function () {
+            var source = tab.getAttribute('data-source');
+            activateHotRankTab(source);
+            try { localStorage.setItem(HOT_RANK_SOURCE_KEY, source); } catch (e) {}
+            loadHotRankData(source);
+        });
+    });
+    // 启动时不主动拉,等 dashboard tab 切到或 loadAllData 触发
+}
+
+function activateHotRankTab(source) {
+    var tab = document.querySelector('.hot-rank-tab[data-source="' + source + '"]');
+    if (!tab) return;
+    var parent = tab.parentElement;
+    parent.querySelectorAll('.hot-rank-tab').forEach(function (t) { t.classList.remove('active'); });
+    tab.classList.add('active');
+    var cardBody = tab.closest('.card-body');
+    if (cardBody) {
+        cardBody.querySelectorAll('.hot-rank-panel').forEach(function (p) { p.classList.remove('active'); });
+        var panel = cardBody.querySelector('#hot-rank-panel-' + source);
+        if (panel) panel.classList.add('active');
     }
 }
 

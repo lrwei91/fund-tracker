@@ -1985,3 +1985,185 @@ body {
     text-align: right;
 }
 .settings-number-input:focus { border-color: var(--amber-soft); }
+
+/* ---------- 自选股 120 日资金流 ---------- */
+.fund-flow-header-hint {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    margin-left: auto;
+    margin-right: 6px;
+    font-family: var(--mono);
+}
+.fund-flow-empty {
+    text-align: center;
+    padding: 14px 8px;
+    color: var(--text-tertiary);
+    font-size: 11px;
+    font-family: var(--mono);
+}
+.fund-flow-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--mono);
+    font-size: 12px;
+}
+.fund-flow-table th,
+.fund-flow-table td {
+    padding: 6px 8px;
+    text-align: right;
+    border-bottom: 1px solid var(--border-subtle);
+}
+.fund-flow-table th:first-child,
+.fund-flow-table td:first-child { text-align: left; }
+.fund-flow-table thead th {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background: transparent;
+}
+.fund-flow-table tbody tr:nth-child(even) {
+    background: var(--bg-surface-alt);
+}
+.fund-flow-name {
+    font-weight: 700;
+    color: var(--text-primary);
+}
+.fund-flow-trend {
+    font-size: 14px;
+    letter-spacing: 1px;
+    white-space: nowrap;
+}
+.fund-flow-trend .flow-positive { color: var(--red); }
+.fund-flow-trend .flow-negative { color: var(--green); }
+.fund-flow-trend .flow-neutral { color: var(--text-tertiary); }
+.flow-neutral { color: var(--text-tertiary); }
+
+/* ---------- 市场热度 (同花顺热榜 + 东财人气榜) ---------- */
+.hot-rank-header-time {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    margin-left: auto;
+    margin-right: 6px;
+    font-family: var(--mono);
+}
+.hot-rank-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+.hot-rank-tab {
+    background: transparent;
+    border: none;
+    padding: 6px 12px;
+    color: var(--text-tertiary);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    font-family: inherit;
+}
+.hot-rank-tab.active {
+    color: var(--text-primary);
+    border-bottom-color: var(--amber-soft);
+}
+.hot-rank-tab:hover:not(.active) { color: var(--text-secondary); }
+.hot-rank-panel { display: none; }
+.hot-rank-panel.active { display: block; }
+.hot-rank-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+.hot-rank-item {
+    display: grid;
+    grid-template-columns: 24px 1fr 60px 60px 50px;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 4px;
+    border-bottom: 1px solid var(--border-subtle);
+    font-family: var(--mono);
+    font-size: 12px;
+}
+.hot-rank-item:nth-child(even) {
+    background: var(--bg-surface-alt);
+}
+.hot-rank-item:last-child { border-bottom: none; }
+.hot-rank-rank {
+    text-align: center;
+    font-weight: 700;
+    color: var(--text-tertiary);
+    font-size: 11px;
+}
+.hot-rank-stock {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.hot-rank-name {
+    color: var(--text-primary);
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.hot-rank-code {
+    color: var(--text-tertiary);
+    font-size: 10px;
+}
+.hot-rank-pct {
+    text-align: right;
+    font-weight: 600;
+}
+.hot-rank-pct.positive { color: var(--red); }
+.hot-rank-pct.negative { color: var(--green); }
+.hot-rank-pct.neutral { color: var(--text-tertiary); }
+.hot-rank-heat,
+.hot-rank-price {
+    text-align: right;
+    color: var(--text-secondary);
+    font-size: 11px;
+}
+.hot-rank-chg {
+    text-align: center;
+    font-weight: 700;
+    font-size: 11px;
+}
+.hot-rank-chg.positive { color: var(--red); }
+.hot-rank-chg.negative { color: var(--green); }
+.hot-rank-chg.neutral { color: var(--text-tertiary); }
+.hot-rank-concepts {
+    display: none;  /* 移动到第二行 */
+}
+@media (min-width: 600px) {
+    .hot-rank-item {
+        grid-template-columns: 24px 1fr 60px 60px 50px auto;
+    }
+    .hot-rank-concepts {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+    }
+}
+.hot-rank-concept {
+    display: inline-block;
+    padding: 1px 6px;
+    font-size: 10px;
+    background: var(--amber-soft-bg, rgba(255, 179, 64, 0.12));
+    color: var(--amber-soft, #ffb340);
+    border-radius: 2px;
+    font-family: var(--mono);
+    white-space: nowrap;
+}
+.hot-rank-tag {
+    display: inline-block;
+    padding: 1px 6px;
+    font-size: 10px;
+    background: var(--red-bg, rgba(255, 23, 68, 0.12));
+    color: var(--red, #ff1744);
+    border-radius: 2px;
+    font-family: var(--mono);
+    white-space: nowrap;
+}

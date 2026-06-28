@@ -160,28 +160,57 @@
             </div>
         </section>
 
+        <!-- 5. 市场热度 (a-stock-data v3.3 §10.2 同花顺热榜 + 东财人气榜) -->
+        <section class="card hot-rank-section" data-collapsible="true" data-collapsed="true">
+            <div class="card-header" role="button" tabindex="0">
+                <h2>市场热度</h2>
+                <span class="hot-rank-header-time" id="hot-rank-update-time"></span>
+                <span class="collapse-icon">▼</span>
+            </div>
+            <div class="card-body">
+                <div class="hot-rank-tabs">
+                    <button class="hot-rank-tab active" data-source="ths">同花顺热榜</button>
+                    <button class="hot-rank-tab" data-source="em">东财人气榜</button>
+                </div>
+                <div class="hot-rank-panel active" id="hot-rank-panel-ths">
+                    <ul class="hot-rank-list" id="hot-rank-list-ths">
+                        <li class="list-empty">加载中...</li>
+                    </ul>
+                </div>
+                <div class="hot-rank-panel" id="hot-rank-panel-em">
+                    <ul class="hot-rank-list" id="hot-rank-list-em">
+                        <li class="list-empty">加载中...</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
     </div>
 
     <!-- ==================== 市场信号 Tab ==================== -->
     <div class="tab-panel" id="tab-signals">
 
-        <!-- 1. 多日资金流向 -->
-        <section class="card multiday-section" data-collapsible="true">
+        <!-- 1. 自选股 120 日资金流 (a-stock-data v3.0 §4.5;取代旧"多日资金"卡) -->
+        <section class="card fund-flow-section" data-collapsible="true">
             <div class="card-header" role="button" tabindex="0">
-                <h2>多日资金流向</h2>
+                <h2>自选股资金流</h2>
+                <span class="fund-flow-header-hint" id="fund-flow-hint">最近 5/20/60 日主力净流入</span>
                 <span class="collapse-icon">▼</span>
             </div>
             <div class="card-body">
-                <div class="multiday-container">
-                    <div class="multiday-table-wrapper">
-                        <h4 class="table-title positive">连续流入</h4>
-                        <table class="multiday-table" id="multiday-inflow"></table>
-                    </div>
-                    <div class="multiday-table-wrapper">
-                        <h4 class="table-title negative">连续流出</h4>
-                        <table class="multiday-table" id="multiday-outflow"></table>
-                    </div>
-                </div>
+                <div class="fund-flow-empty" id="fund-flow-empty">添加自选股后查看资金流</div>
+                <table class="fund-flow-table" id="fund-flow-table" hidden>
+                    <thead>
+                        <tr>
+                            <th>股票</th>
+                            <th>5日</th>
+                            <th>20日</th>
+                            <th>60日</th>
+                            <th>近10日趋势</th>
+                        </tr>
+                    </thead>
+                    <tbody id="fund-flow-rows"></tbody>
+                </table>
             </div>
         </section>
 

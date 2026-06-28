@@ -11,6 +11,9 @@ const CASES = [
     ['lockup', {}],
     ['global-news', {}],
     ['news', {}],
+    ['fund-flow-120d', { codes: '600519,300750', days: 60 }],
+    ['hot-rank', { source: 'ths', period: 'hour' }],
+    ['hot-rank', { source: 'em', limit: 10 }],
 ];
 
 function call(handler, query) {
@@ -61,6 +64,15 @@ function hasNonEmptyPayload(name, query, data) {
     }
     if (name === 'global-news') {
         return Boolean(data && Array.isArray(data.data) && data.data.length && (data.data[0].title || data.data[0].summary));
+    }
+    if (name === 'fund-flow-120d') {
+        return Boolean(data && Array.isArray(data.items) && data.items.length
+            && data.items[0].summary && typeof data.items[0].summary.main_5d === 'number'
+            && Array.isArray(data.items[0].recent) && data.items[0].recent.length > 0);
+    }
+    if (name === 'hot-rank') {
+        return Boolean(data && Array.isArray(data.items) && data.items.length
+            && data.items[0].code && data.items[0].name);
     }
     return Boolean(data);
 }
