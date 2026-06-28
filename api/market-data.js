@@ -53,9 +53,12 @@ async function loadCapital() {
         loadMarketMainFund(),
         loadNorthFund(),
     ]);
+    // northFund 内嵌了 northHgt / northSgt, 提一层方便前端 6 格子渲染
     return {
         mainFund,
-        northFund,
+        northFund: { value: northFund.value, isPositive: northFund.isPositive, time: northFund.time },
+        northHgt: northFund.northHgt,
+        northSgt: northFund.northSgt,
     };
 }
 
@@ -124,15 +127,7 @@ function eastmoneyMarketFs() {
 }
 
 async function loadMarketMainFund() {
-    const thsRows = await loadThsIndustryRows();
-    if (thsRows.length) {
-        const totalYi = thsRows.reduce((sum, row) => sum + (row.netYi || 0), 0);
-        return {
-            value: `${totalYi > 0 ? '+' : ''}${totalYi.toFixed(2)}亿`,
-            isPositive: totalYi >= 0,
-        };
-    }
-
+    // 同花顺源只有"行业净流入"无法做全市场总额,这里只走 push2 全市场 4 档拆分
     const params = new URLSearchParams({
         pn: '1',
         pz: '6000',
@@ -141,7 +136,9 @@ async function loadMarketMainFund() {
         fltt: '2',
         invt: '2',
         fs: eastmoneyMarketFs(),
-        fields: 'f12,f14,f62',
+        // f62=主力(超大单+大单), f66=超大单(≥100万), f72=大单(≥20万<100万),
+        // f78=中单(≥4万<20万), f84=小单(<4万)
+        fields: 'f12,f14,f62,f66,f72,f78,f84',
     });
     const json = await emGet(`https://push2.eastmoney.com/api/qt/clist/get?${params.toString()}`, {
         headers: {
@@ -151,14 +148,31 @@ async function loadMarketMainFund() {
         timeout: 15000,
     });
     const rows = json && json.data && Array.isArray(json.data.diff) ? json.data.diff : [];
-    const total = rows.reduce((sum, row) => {
-        const value = toNumber(row.f62);
-        return value === null ? sum : sum + value;
-    }, 0);
     if (!rows.length) throw new Error('主力资金为空');
+
+    // 全市场合计:对每档做 sum
+    const sum = (key) => rows.reduce((s, r) => {
+        const v = toNumber(r[key]);
+        return v === null ? s : s + v;
+    }, 0);
+    const totalMain = sum('f62');   // 主力 = 超大单+大单
+    const totalSuper = sum('f66');  // 超大单
+    const totalLarge = sum('f72');  // 大单
+    const totalMedium = sum('f78'); // 中单
+    const totalSmall = sum('f84');  // 小单
+
+    // 主力 + 大单/中单/小单 共 4 档给到前端
+    // 这里"主力"用 f62 (超大单+大单), "大单"=f66 超大单 (按金额大小排列),
+    // "中单"=f78, "小单"=f84, 跟散户最关心的层级一致
     return {
-        value: formatYi(total),
-        isPositive: total >= 0,
+        value: formatYi(totalMain),
+        isPositive: totalMain >= 0,
+        breakdown: {
+            superLarge: { value: formatYi(totalSuper), isPositive: totalSuper >= 0 },
+            large:      { value: formatYi(totalLarge), isPositive: totalLarge >= 0 },
+            medium:     { value: formatYi(totalMedium), isPositive: totalMedium >= 0 },
+            small:      { value: formatYi(totalSmall),  isPositive: totalSmall >= 0  },
+        },
     };
 }
 
@@ -176,13 +190,21 @@ async function loadNorthFund() {
         const hgt = toNumber(json.hgt && json.hgt[index]);
         const sgt = toNumber(json.sgt && json.sgt[index]);
         if (hgt === null || sgt === null) return;
-        latest = { time, value: hgt + sgt };
+        latest = { time, hgt, sgt, value: hgt + sgt };
     });
     if (!latest) throw new Error('北向资金为空');
     return {
         value: `${latest.value > 0 ? '+' : ''}${latest.value.toFixed(2)}亿`,
         isPositive: latest.value >= 0,
         time: latest.time,
+        northHgt: {
+            value: `${latest.hgt > 0 ? '+' : ''}${latest.hgt.toFixed(2)}亿`,
+            isPositive: latest.hgt >= 0,
+        },
+        northSgt: {
+            value: `${latest.sgt > 0 ? '+' : ''}${latest.sgt.toFixed(2)}亿`,
+            isPositive: latest.sgt >= 0,
+        },
     };
 }
 

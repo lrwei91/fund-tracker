@@ -51,7 +51,14 @@ function summarize(data) {
 
 function hasNonEmptyPayload(name, query, data) {
     if (name === 'market-data' && query.type === 'capital') {
-        return Boolean(data && data.mainFund && data.northFund && !/暂无/.test(data.mainFund.value) && !/暂无/.test(data.northFund.value));
+        // 资金 4 档 (mainFund.value + mainFund.breakdown) + 北向 2 通道 (northHgt + northSgt)
+        var b = data && data.mainFund && data.mainFund.breakdown;
+        return Boolean(data && data.mainFund && b
+            && b.large && b.medium && b.small
+            && data.northHgt && data.northSgt
+            && !/暂无/.test(data.mainFund.value)
+            && !/暂无/.test(data.northHgt.value)
+            && !/暂无/.test(data.northSgt.value));
     }
     if (name === 'market-data' && query.type === 'sector') {
         return Boolean(data && Array.isArray(data.inflow) && Array.isArray(data.outflow) && data.inflow.length && data.outflow.length);

@@ -978,10 +978,10 @@ body {
 }
 .watchlist-status.error { color: var(--red); }
 
-/* ---------- 资金流向 — Compact Inline ---------- */
+/* ---------- 资金流向 — 6 格子 (主力 4 档 + 北向 2 通道) ---------- */
 .capital-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, 1fr);
     gap: 0;
 }
 
@@ -990,14 +990,16 @@ body {
     padding: 8px 0;
     text-align: left;
     border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.04));
     padding-left: 0;
     padding-right: 10px;
 }
 
-.capital-item:last-child {
-    border-right: none;
-    padding-left: 10px;
-}
+/* 3 列布局: 1/4 拿掉右边框 (每行末尾) */
+.capital-item:nth-child(3n) { border-right: none; padding-left: 10px; }
+.capital-item:nth-child(3n+1) { padding-left: 0; }
+/* 第 4~6 项 (北向) 拿掉底边框, 与前 3 项 (资金 4 档) 之间用底边框分组 */
+.capital-item:nth-child(n+4) { border-bottom: none; padding-top: 10px; }
 
 .capital-label {
     font-size: 11px;
@@ -1019,6 +1021,13 @@ body {
 
 .capital-value.positive { color: var(--red); }
 .capital-value.negative { color: var(--green); }
+
+@media (max-width: 480px) {
+    .capital-grid { grid-template-columns: repeat(2, 1fr); }
+    .capital-item:nth-child(2n) { border-right: none; padding-left: 10px; }
+    .capital-item:nth-child(2n+1) { padding-left: 0; }
+    .capital-item:nth-child(n+5) { border-bottom: none; padding-top: 10px; }
+}
 
 /* ---------- 板块排行 — Text Tabs ---------- */
 .sector-tabs {

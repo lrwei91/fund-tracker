@@ -838,22 +838,24 @@ function refreshStaleCustomIndex() {
 }
 
 function renderCapitalUI(cap) {
-    var mf = document.getElementById('main-fund-value');
-    var nf = document.getElementById('north-fund-value');
-    if (mf) {
-        mf.textContent = cap.mainFund.value;
-        mf.className = 'capital-value';
-        if (typeof cap.mainFund.isPositive === 'boolean') {
-            mf.classList.add(cap.mainFund.isPositive ? 'positive' : 'negative');
+    // 6 格子: 资金 4 档 (主力/大单/中单/小单) + 北向 2 通道 (沪股通/深股通)
+    var cells = [
+        { id: 'main-fund-value', data: cap.mainFund },
+        { id: 'large-value',     data: cap.mainFund && cap.mainFund.breakdown && cap.mainFund.breakdown.large },
+        { id: 'medium-value',    data: cap.mainFund && cap.mainFund.breakdown && cap.mainFund.breakdown.medium },
+        { id: 'small-value',     data: cap.mainFund && cap.mainFund.breakdown && cap.mainFund.breakdown.small },
+        { id: 'north-hgt-value', data: cap.northHgt },
+        { id: 'north-sgt-value', data: cap.northSgt },
+    ];
+    cells.forEach(function (cell) {
+        var el = document.getElementById(cell.id);
+        if (!el) return;
+        el.textContent = cell.data && cell.data.value ? cell.data.value : '--';
+        el.className = 'capital-value';
+        if (cell.data && typeof cell.data.isPositive === 'boolean') {
+            el.classList.add(cell.data.isPositive ? 'positive' : 'negative');
         }
-    }
-    if (nf) {
-        nf.textContent = cap.northFund.value;
-        nf.className = 'capital-value';
-        if (typeof cap.northFund.isPositive === 'boolean') {
-            nf.classList.add(cap.northFund.isPositive ? 'positive' : 'negative');
-        }
-    }
+    });
 }
 
 function renderSectorUI(sectors) {
