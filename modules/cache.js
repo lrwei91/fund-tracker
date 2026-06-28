@@ -3,10 +3,29 @@
 // 暴露到 window.AppCache;直接 script 引入,无需 import/require
 // 包含:readJson / writeJson / readTimedCache / writeTimedCache /
 //      readDailyDataCache / writeDailyDataCache
+// 内部:cleanupLegacyCaches() 首次缓存读时自动执行一次
 // ================================================================
 
 (function () {
+    // v1 旧 cache key, 升级后已无 read 路径, 这里集中清理
+    // 注意: cleanupLegacyCaches() 由 readJson / readDailyDataCache 懒调用一次
+    //       (modules 之间约定, 不依赖 app.js 在 init 时显式触发)
+    var LEGACY_CACHE_KEYS = [
+        'fund_tracker_multiday_flow_cache',  // 已被自选股资金流替代
+        'fund_tracker_fund_flow_cache',      // v1, 已升 v2
+        'fund_tracker_prev_pct',             // 功能已搬到 index_prev_pct
+    ];
+    var _legacyCleaned = false;
+    function cleanupLegacyCaches() {
+        if (_legacyCleaned) return;
+        _legacyCleaned = true;
+        LEGACY_CACHE_KEYS.forEach(function (key) {
+            try { localStorage.removeItem(key); } catch (e) {}
+        });
+    }
+
     function readJson(key, fallback) {
+        cleanupLegacyCaches();
         try {
             var raw = localStorage.getItem(key);
             return raw ? JSON.parse(raw) : fallback;
@@ -35,6 +54,7 @@
     // 日级持久缓存: 同一日期内复用,跨日失效
     // 返回 { date, data, updatedAt } 或 null
     function readDailyDataCache(key) {
+        cleanupLegacyCaches();
         try {
             return JSON.parse(localStorage.getItem(key) || 'null');
         } catch (e) {
