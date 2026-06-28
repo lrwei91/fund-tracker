@@ -409,6 +409,15 @@
     </div>
 </div>
 
+<!-- Modules 加载顺序:utils → state → cache → render-* (共享 window 全局,顺序互不依赖) → app.js 入口 -->
+<script src="modules/utils.js"></script>
+<script src="modules/state.js"></script>
+<script src="modules/cache.js"></script>
+<script src="modules/render-alerts.js"></script>
+<script src="modules/render-market.js"></script>
+<script src="modules/render-signals.js"></script>
+<script src="modules/render-watchlist.js"></script>
+<script src="modules/render-news.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
