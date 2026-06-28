@@ -1129,18 +1129,15 @@ body {
 
 .capital-item {
     background: transparent;
-    padding: 8px 0;
+    padding: 8px 10px;
     text-align: left;
     border-right: 1px solid var(--border);
     border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.04));
-    padding-left: 0;
-    padding-right: 10px;
 }
 
-/* 3 列布局: 1/4 拿掉右边框 (每行末尾) */
-.capital-item:nth-child(3n) { border-right: none; padding-left: 10px; }
-.capital-item:nth-child(3n+1) { padding-left: 0; }
-/* 第 4~6 项 (北向) 拿掉底边框, 与前 3 项 (资金 4 档) 之间用底边框分组 */
+/* 3 列布局: 每行末列 (3/6) 拿掉右边框 */
+.capital-item:nth-child(3n) { border-right: none; }
+/* 第 2 行 (4/5/6 北向) 拿掉底边框, 与第 1 行 (资金 4 档) 用底边框分组 */
 .capital-item:nth-child(n+4) { border-bottom: none; padding-top: 10px; }
 
 .capital-label {
@@ -1166,8 +1163,7 @@ body {
 
 @media (max-width: 480px) {
     .capital-grid { grid-template-columns: repeat(2, 1fr); }
-    .capital-item:nth-child(2n) { border-right: none; padding-left: 10px; }
-    .capital-item:nth-child(2n+1) { padding-left: 0; }
+    .capital-item:nth-child(2n) { border-right: none; }
     .capital-item:nth-child(n+5) { border-bottom: none; padding-top: 10px; }
 }
 
