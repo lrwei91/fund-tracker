@@ -1,9 +1,11 @@
 const {
+    API_TIMEOUTS,
     emGet,
     fail,
     fetchGbkText,
     fetchJson,
     formatPct,
+    formatYi,
     ok,
     toNumber,
 } = require('./_utils');
@@ -115,13 +117,6 @@ function shanghaiDateKey() {
     }).format(new Date());
 }
 
-function formatYi(value) {
-    const number = toNumber(value);
-    if (number === null) return '--';
-    const yi = number / 100000000;
-    return `${yi > 0 ? '+' : ''}${yi.toFixed(2)}亿`;
-}
-
 function eastmoneyMarketFs() {
     return 'm:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23,m:0+t:81+s:2048';
 }
@@ -145,7 +140,7 @@ async function loadMarketMainFund() {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125 Safari/537.36',
             Referer: 'https://quote.eastmoney.com/',
         },
-        timeout: 15000,
+        timeout: API_TIMEOUTS.heavy,
     });
     const rows = json && json.data && Array.isArray(json.data.diff) ? json.data.diff : [];
     if (!rows.length) throw new Error('主力资金为空');
@@ -239,7 +234,7 @@ async function loadIndustryRows() {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125 Safari/537.36',
             Referer: 'https://quote.eastmoney.com/center/boardlist.html',
         },
-        timeout: 15000,
+        timeout: API_TIMEOUTS.heavy,
     });
     const rows = json && json.data && Array.isArray(json.data.diff) ? json.data.diff : [];
     return rows.map((item) => ({
@@ -260,7 +255,7 @@ async function loadThsIndustryRows() {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125 Safari/537.36',
             Referer: 'https://data.10jqka.com.cn/',
         },
-        timeout: 12000,
+        timeout: API_TIMEOUTS.push2,
     });
     const tbody = html.match(/<tbody[^>]*>([\s\S]*?)<\/tbody>/i);
     if (!tbody) return [];

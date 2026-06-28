@@ -1,4 +1,26 @@
+// 公共工具集 — 所有 api/*.js 共享的工具函数、常量与 eastmoney 重试 helper
+// (保持纯函数 / 纯常量, 不放任何业务状态)
+
 const { TextDecoder } = require('util');
+
+// 交易时段常量 (上海时区分钟数, 9:15=555, 11:30=690, 13:00=780, 15:00=900, 15:05=905, 16:00=960, 21:00=1260)
+// 业务时间判断函数 (isIntradayRefreshWindow 等) 在 app.js 里维护, 此处只放静态常量备以后用
+const TRADING_HOURS = {
+    morningOpen:    9 * 60 + 15,
+    morningClose:  11 * 60 + 30,
+    afternoonOpen: 13 * 60,
+    afternoonClose:15 * 60 + 5,
+    postClose:     16 * 60,
+    lateHours:     21 * 60,
+};
+
+// API 请求超时 (ms)
+const API_TIMEOUTS = {
+    fast:   8 * 1000,    // 轻量查询 (quote, 名称)
+    normal: 10 * 1000,   // 通用
+    push2:  12 * 1000,   // push2.eastmoney.com
+    heavy:  15 * 1000,   // 全市场 6000 条等
+};
 
 function sendJson(res, status, body) {
     res.statusCode = status;
@@ -126,19 +148,30 @@ function formatPct(value) {
     return `${number > 0 ? '+' : ''}${number.toFixed(2)}%`;
 }
 
+function formatYi(value) {
+    const number = toNumber(value);
+    if (number === null) return '--';
+    const yi = number / 100000000;
+    return `${yi > 0 ? '+' : ''}${yi.toFixed(2)}亿`;
+}
+
 function tencentSymbol(code) {
     return `${/^(5|6|9)/.test(code) ? 'sh' : 'sz'}${code}`;
 }
 
 module.exports = {
+    API_TIMEOUTS,
+    TRADING_HOURS,
     emGet,
     fail,
-    fetchJson,
     fetchGbkText,
+    fetchJson,
     fetchText,
     formatPct,
+    formatYi,
     ok,
     sendJson,
+    sleep,
     tencentSymbol,
     toNumber,
 };

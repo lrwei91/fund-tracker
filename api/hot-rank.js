@@ -2,7 +2,7 @@
 //   - ths: GET  dq.10jqka.com.cn/fuyao/hot_list_data/v1/stock (同花顺,非东财,不走 emGet)
 //   - em:  POST emappdata.eastmoney.com/stockrank/getAllCurrentList (东财,走 emGet + push2 ulist 补名称)
 
-const { emGet, fail, fetchJson, ok } = require('./_utils');
+const { API_TIMEOUTS, emGet, fail, fetchJson, ok } = require('./_utils');
 
 const THS_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36';
 const EM_HOT_BODY = {
@@ -15,7 +15,7 @@ async function loadThsHotRank(period) {
     const url = `https://dq.10jqka.com.cn/fuyao/hot_list_data/out/hot_list/v1/stock?stock_type=a&type=${period || 'hour'}&list_type=normal`;
     const json = await fetchJson(url, {
         headers: { 'User-Agent': THS_UA },
-        timeout: 10000,
+        timeout: API_TIMEOUTS.normal,
     });
     const stockList = json && json.data && Array.isArray(json.data.stock_list) ? json.data.stock_list : [];
     return stockList.slice(0, 30).map((item) => {

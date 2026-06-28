@@ -4,7 +4,7 @@
 // 端点统一参数: ut, dpt=wz.ztzt, Pageindex, pagesize, sort, date
 // 不同 sort 区分四池
 
-const { emGet, fail, ok } = require('./_utils');
+const { API_TIMEOUTS, emGet, fail, ok } = require('./_utils');
 
 const ZTB_UT = '7eea3edcaed734bea9cbfc24409ed989';
 
@@ -50,7 +50,7 @@ async function fetchPool(type, date, limit) {
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
             Referer: 'https://quote.eastmoney.com/',
         },
-        timeout: 12000,
+        timeout: API_TIMEOUTS.push2,
     });
     return (json && json.data && Array.isArray(json.data.pool)) ? json.data.pool : [];
 }

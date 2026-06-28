@@ -3,7 +3,7 @@
 // 注意:此接口为个股维度(非行业板块),更符合"自选股用户最关心我关注的几只股最近资金动向"的价值
 //   — 行业板块连续 N 日维度在 a-stock-data 中也仅给到个股端点,行业多日需要 N×N 次拉取(不可行)
 
-const { emGet, fail, fetchGbkText, ok } = require('./_utils');
+const { API_TIMEOUTS, emGet, fail, fetchGbkText, ok } = require('./_utils');
 
 const MAX_CODES = 10;   // 单次最多 10 只,防并发打东财
 const MAX_DAYS = 120;
@@ -29,7 +29,7 @@ async function fetchNames(codes) {
     try {
         text = await fetchGbkText(`https://qt.gtimg.cn/q=${symbols}`, {
             headers: { 'User-Agent': 'Mozilla/5.0' },
-            timeout: 8000,
+            timeout: API_TIMEOUTS.fast,
         });
     } catch (e) {
         // 名称拉取失败不影响主流程,fallback 到空 name,前端会用 code 兜底
@@ -70,7 +70,7 @@ async function fetchOneCode(code, days) {
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
             Referer: 'https://quote.eastmoney.com/',
         },
-        timeout: 12000,
+        timeout: API_TIMEOUTS.push2,
     });
     return json && json.data && Array.isArray(json.data.klines) ? json.data.klines : [];
 }
