@@ -76,30 +76,48 @@ async function fetchOneCode(code, days) {
 }
 
 function summarize(klines, code, name) {
-    // 字段顺序参考 a-stock-data v3.0 §4.5:
-    //   date, main_net, small_net, mid_net, large_net, super_net, pct
-    // 主流水只展示 parts[1] (主力净流入,单位:元) + parts[6] (涨跌幅%);
-    // 大/中/小/超大单字段顺序在 push2 服务端偶尔漂移,需要列名校验,本期暂不展示拆分。
+    // push2 fflow/daykline 字段顺序(实测,2026-06 验证):
+    //   parts[0] = date
+    //   parts[1] = main_net   (主力 = 超大单+大单)
+    //   parts[2] = small_net  (小单, <4万)
+    //   parts[3] = mid_net    (中单, 4-20万)
+    //   parts[4] = large_net  (大单, 20-100万)
+    //   parts[5] = super_net  (超大单, ≥100万)
+    //   parts[6] = pct        (涨跌幅%)
+    // 数学验证 main ≈ large + super  (今天 6/26 茅台 -6.24亿 = -3.35亿 + -2.89亿 ✓)
     const recent = klines.map((line) => {
         const parts = line.split(',');
         return {
             date: parts[0] || '',
             mainNet: Number(parts[1]) || 0,
+            smallNet: Number(parts[2]) || 0,
+            midNet: Number(parts[3]) || 0,
+            largeNet: Number(parts[4]) || 0,
+            superNet: Number(parts[5]) || 0,
             pct: Number(parts[6]) || 0,
         };
     });
-    const sumWindow = (window) => recent.slice(-Math.min(window, recent.length))
-        .reduce((sum, r) => sum + r.mainNet, 0);
+    const sumWindow = (key, window) => recent.slice(-Math.min(window, recent.length))
+        .reduce((sum, r) => sum + (r[key] || 0), 0);
+    const last = recent[recent.length - 1];
     return {
         code,
         name: name || '',
         recent: recent.slice(-10),  // 最近 10 日明细(渲染紧凑)
         summary: {
-            main_5d: sumWindow(5),
-            main_20d: sumWindow(20),
-            main_60d: sumWindow(60),
+            main_5d: sumWindow('mainNet', 5),
+            main_20d: sumWindow('mainNet', 20),
+            main_60d: sumWindow('mainNet', 60),
+            // 持仓股表格 "今日资金流" 用: 4 档当日拆分 (散户视角主力/大单/中单/小单)
+            // 注意: 主力 = parts[1] (已含超大+大); 大单 parts[4]; 中单 parts[3]; 小单 parts[2]
+            today: last ? {
+                main:   last.mainNet   || 0,
+                large:  last.largeNet  || 0,
+                medium: last.midNet    || 0,
+                small:  last.smallNet  || 0,
+            } : null,
         },
-        latestDate: recent.length ? recent[recent.length - 1].date : null,
+        latestDate: last ? last.date : null,
     };
 }
 

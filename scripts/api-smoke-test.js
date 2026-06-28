@@ -73,10 +73,18 @@ function hasNonEmptyPayload(name, query, data) {
         return Boolean(data && Array.isArray(data.data) && data.data.length && (data.data[0].title || data.data[0].summary));
     }
     if (name === 'fund-flow-120d') {
-        return Boolean(data && Array.isArray(data.items) && data.items.length
-            && data.items[0].summary && typeof data.items[0].summary.main_5d === 'number'
-            && Array.isArray(data.items[0].recent) && data.items[0].recent.length > 0
-            && data.items[0].name);  // 后端必须带 name(腾讯 quote 拿)
+        var first = data && data.items && data.items[0];
+        var today = first && first.summary && first.summary.today;
+        return Boolean(first
+            && typeof first.summary.main_5d === 'number'
+            && Array.isArray(first.recent) && first.recent.length > 0
+            && first.name
+            // 持仓股 sub-row 用: today 4 档 (主力/大单/中单/小单) 必须有
+            && today
+            && typeof today.main === 'number'
+            && typeof today.large === 'number'
+            && typeof today.medium === 'number'
+            && typeof today.small === 'number');
     }
     if (name === 'hot-rank') {
         return Boolean(data && Array.isArray(data.items) && data.items.length

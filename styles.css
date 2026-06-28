@@ -970,6 +970,54 @@ body {
     opacity: 1;
 }
 
+/* ---------- 持仓股 "今日资金流" sub-row (4 档 mini bar) ---------- */
+.watchlist-fund-flow {
+    grid-column: 1 / -1;       /* 跨整行 */
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px dashed var(--border-subtle, rgba(255, 255, 255, 0.06));
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.watchlist-fund-row {
+    display: grid;
+    grid-template-columns: 36px 1fr 60px;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 10px;
+}
+.watchlist-fund-label {
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    font-weight: 600;
+}
+.watchlist-fund-track {
+    height: 4px;
+    background: var(--bg-surface-alt, rgba(255, 255, 255, 0.04));
+    border-radius: 1px;
+    position: relative;
+    overflow: hidden;
+}
+.watchlist-fund-fill {
+    height: 100%;
+    width: 0;
+    transition: width 0.4s ease;
+    border-radius: 1px;
+}
+.watchlist-fund-fill.positive { background: var(--red); }
+.watchlist-fund-fill.negative { background: var(--green); }
+.watchlist-fund-value {
+    text-align: right;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+.watchlist-fund-value.positive { color: var(--red); }
+.watchlist-fund-value.negative { color: var(--green); }
+.watchlist-fund-value.neutral { color: var(--text-tertiary); }
+
 .watchlist-status {
     font-size: 10px;
     padding: 4px 0 0;
