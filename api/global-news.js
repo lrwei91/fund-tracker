@@ -1,6 +1,6 @@
 const crypto = require('crypto');
 
-const { fail, fetchJson, fetchText, ok } = require('./_utils');
+const { emGet, fail, fetchJson, fetchText, ok } = require('./_utils');
 
 function decodeEntities(text) {
     return String(text || '')
@@ -20,7 +20,7 @@ async function loadEastmoneyFastNews(cursor, limit) {
         pageSize: String(limit || 20),
         req_trace: crypto.randomUUID(),
     });
-    const json = await fetchJson(`https://np-weblist.eastmoney.com/comm/web/getFastNewsList?${params.toString()}`, {
+    const json = await emGet(`https://np-weblist.eastmoney.com/comm/web/getFastNewsList?${params.toString()}`, {
         headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/125 Safari/537.36',
             Referer: 'https://kuaixun.eastmoney.com/',

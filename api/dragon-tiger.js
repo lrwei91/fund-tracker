@@ -1,9 +1,9 @@
-const { fail, fetchJson, ok } = require('./_utils');
+const { emGet, fail, ok } = require('./_utils');
 
 module.exports = async function handler(req, res) {
     try {
         const url = 'https://datacenter-web.eastmoney.com/api/data/v1/get?sortColumns=TRADE_DATE&sortTypes=-1&pageSize=20&pageNumber=1&reportName=RPT_DAILYBILLBOARD_DETAILS&columns=ALL';
-        const json = await fetchJson(url);
+        const json = await emGet(url);
         const rows = json && json.result && json.result.data;
         const stocks = (rows || []).map((row) => ({
             code: row.SECURITY_CODE,

@@ -120,7 +120,7 @@
             </div>
         </section>
 
-        <!-- 3. 资金流向 -->
+        <!-- 3. 资金流向 (主力 4 档 + 北向 2 通道,共 6 格子) -->
         <section class="card capital-section" data-collapsible="true">
             <div class="card-header" role="button" tabindex="0">
                 <h2>资金流向</h2>
@@ -129,34 +129,75 @@
             <div class="card-body">
                 <div class="capital-grid">
                     <div class="capital-item">
-                        <div class="capital-label">主力资金</div>
+                        <div class="capital-label">主力</div>
                         <div class="capital-value" id="main-fund-value">--</div>
                     </div>
                     <div class="capital-item">
-                        <div class="capital-label">北向资金</div>
-                        <div class="capital-value" id="north-fund-value">--</div>
+                        <div class="capital-label">大单</div>
+                        <div class="capital-value" id="large-value">--</div>
+                    </div>
+                    <div class="capital-item">
+                        <div class="capital-label">中单</div>
+                        <div class="capital-value" id="medium-value">--</div>
+                    </div>
+                    <div class="capital-item">
+                        <div class="capital-label">小单</div>
+                        <div class="capital-value" id="small-value">--</div>
+                    </div>
+                    <div class="capital-item">
+                        <div class="capital-label">沪股通</div>
+                        <div class="capital-value" id="north-hgt-value">--</div>
+                    </div>
+                    <div class="capital-item">
+                        <div class="capital-label">深股通</div>
+                        <div class="capital-value" id="north-sgt-value">--</div>
                     </div>
                 </div>
             </div>
         </section>
 
-        <!-- 4. 板块排行 -->
+        <!-- 4. 板块排行 (diverging bar chart) -->
         <section class="card sector-section" data-collapsible="true">
             <div class="card-header" role="button" tabindex="0">
                 <h2>板块排行</h2>
+                <span class="sector-header-time" id="sector-update-time"></span>
                 <span class="collapse-icon">▼</span>
             </div>
             <div class="card-body">
-                <div class="sector-tabs">
-                    <button class="sector-tab active" data-tab="inflow">流入</button>
-                    <button class="sector-tab" data-tab="outflow">流出</button>
+                <div class="sector-chart">
+                    <div class="sector-chart-group">
+                        <h4 class="sector-group-title">资金流入 TOP5</h4>
+                        <div class="sector-bars" id="sector-bars-inflow"></div>
+                    </div>
+                    <div class="sector-chart-group">
+                        <h4 class="sector-group-title">资金流出 TOP5</h4>
+                        <div class="sector-bars" id="sector-bars-outflow"></div>
+                    </div>
                 </div>
-                <div class="sector-panel active" id="sector-panel-inflow">
-                    <ul id="inflow-sectors" class="sector-list"></ul>
-                </div>
-                <div class="sector-panel" id="sector-panel-outflow">
-                    <ul id="outflow-sectors" class="sector-list"></ul>
-                </div>
+            </div>
+        </section>
+
+        <!-- 5. 自选股资金流 (a-stock-data v3.0 §4.5;从信号 tab 上移) -->
+        <section class="card fund-flow-section" data-collapsible="true" data-collapsed="true">
+            <div class="card-header" role="button" tabindex="0">
+                <h2>自选股资金流</h2>
+                <span class="fund-flow-header-hint" id="fund-flow-hint">5/20/60 日主力净流入</span>
+                <span class="collapse-icon">▼</span>
+            </div>
+            <div class="card-body">
+                <div class="fund-flow-empty" id="fund-flow-empty">添加自选股后查看资金流</div>
+                <table class="fund-flow-table" id="fund-flow-table" hidden>
+                    <thead>
+                        <tr>
+                            <th>股票</th>
+                            <th>5日</th>
+                            <th>20日</th>
+                            <th>60日</th>
+                            <th>近10日趋势</th>
+                        </tr>
+                    </thead>
+                    <tbody id="fund-flow-rows"></tbody>
+                </table>
             </div>
         </section>
 
@@ -165,22 +206,27 @@
     <!-- ==================== 市场信号 Tab ==================== -->
     <div class="tab-panel" id="tab-signals">
 
-        <!-- 1. 多日资金流向 -->
-        <section class="card multiday-section" data-collapsible="true">
+        <!-- 1. 市场热度 (a-stock-data v3.3 §10.2 同花顺热榜 + 东财人气榜;从行情 tab 下移) -->
+        <section class="card hot-rank-section" data-collapsible="true" data-collapsed="true">
             <div class="card-header" role="button" tabindex="0">
-                <h2>多日资金流向</h2>
+                <h2>市场热度</h2>
+                <span class="hot-rank-header-time" id="hot-rank-update-time"></span>
                 <span class="collapse-icon">▼</span>
             </div>
             <div class="card-body">
-                <div class="multiday-container">
-                    <div class="multiday-table-wrapper">
-                        <h4 class="table-title positive">连续流入</h4>
-                        <table class="multiday-table" id="multiday-inflow"></table>
-                    </div>
-                    <div class="multiday-table-wrapper">
-                        <h4 class="table-title negative">连续流出</h4>
-                        <table class="multiday-table" id="multiday-outflow"></table>
-                    </div>
+                <div class="hot-rank-tabs">
+                    <button class="hot-rank-tab active" data-source="ths">同花顺热榜</button>
+                    <button class="hot-rank-tab" data-source="em">东财人气榜</button>
+                </div>
+                <div class="hot-rank-panel active" id="hot-rank-panel-ths">
+                    <ul class="hot-rank-list" id="hot-rank-list-ths">
+                        <li class="list-empty">加载中...</li>
+                    </ul>
+                </div>
+                <div class="hot-rank-panel" id="hot-rank-panel-em">
+                    <ul class="hot-rank-list" id="hot-rank-list-em">
+                        <li class="list-empty">加载中...</li>
+                    </ul>
                 </div>
             </div>
         </section>
@@ -199,15 +245,23 @@
             </div>
         </section>
 
-        <!-- 3. 限售解禁 -->
-        <section class="card lockup-section" data-collapsible="true" data-collapsed="true">
+        <!-- 3. 异动提醒 (打板层 4 池 + 情绪摘要) — a-stock-data v3.3 §8 -->
+        <section class="card limit-up-section" data-collapsible="true" data-collapsed="true">
             <div class="card-header" role="button" tabindex="0">
-                <h2>限售解禁</h2>
+                <h2>异动提醒</h2>
+                <span class="limit-up-header-time" id="limit-up-time"></span>
                 <span class="collapse-icon">▼</span>
             </div>
             <div class="card-body">
-                <div class="lockup-list" id="lockup-list">
-                    <div class="lockup-empty">加载中...</div>
+                <div class="limit-up-summary" id="limit-up-summary"></div>
+                <div class="limit-up-tabs">
+                    <button class="limit-up-tab active" data-type="zt">涨停</button>
+                    <button class="limit-up-tab" data-type="zb">炸板</button>
+                    <button class="limit-up-tab" data-type="dt">跌停</button>
+                    <button class="limit-up-tab" data-type="yzt">昨涨停</button>
+                </div>
+                <div class="limit-up-list" id="limit-up-list">
+                    <div class="limit-up-empty">加载中...</div>
                 </div>
             </div>
         </section>
@@ -342,6 +396,28 @@
     </div>
 </div>
 
+<!-- 单股资金流弹窗 (点击持仓股某行触发) -->
+<div class="modal-overlay" id="stock-fund-overlay" hidden></div>
+<div class="modal-panel" id="stock-fund-panel" role="dialog" aria-modal="true" aria-labelledby="stock-fund-title" hidden>
+    <div class="modal-header">
+        <h3 id="stock-fund-title">股票资金流</h3>
+        <span class="modal-header-time" id="stock-fund-time"></span>
+        <button class="modal-close" id="stock-fund-close" aria-label="关闭">✕</button>
+    </div>
+    <div class="modal-body" id="stock-fund-body">
+        <div class="list-empty">加载中...</div>
+    </div>
+</div>
+
+<!-- Modules 加载顺序:utils → state → cache → render-* (共享 window 全局,顺序互不依赖) → app.js 入口 -->
+<script src="modules/utils.js"></script>
+<script src="modules/state.js"></script>
+<script src="modules/cache.js"></script>
+<script src="modules/render-alerts.js"></script>
+<script src="modules/render-market.js"></script>
+<script src="modules/render-signals.js"></script>
+<script src="modules/render-watchlist.js"></script>
+<script src="modules/render-news.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

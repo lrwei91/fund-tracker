@@ -1,0 +1,408 @@
+// ================================================================
+// 市场信号 — 市场热度 / 龙虎榜 / 异动提醒 (打板层 4 池)
+// 暴露到 window.AppSignals;
+// 直接 script 引入,无需 import/require
+// 依赖:window.AppState, window.AppUtils, window.AppCache
+// ================================================================
+
+(function () {
+    var state = window.AppState;
+    var utils = window.AppUtils;
+    var cache = window.AppCache;
+    var KEYS = state.KEYS;
+
+    // ============================================================
+    // 市场热度 (a-stock-data v3.3 §10.2 同花顺热榜 + 东财人气榜)
+    // ============================================================
+
+    function getActiveHotRankSource() {
+        try { return localStorage.getItem(KEYS.HOT_RANK_SOURCE_KEY) || 'ths'; } catch (e) { return 'ths'; }
+    }
+    function hotRankCacheKey(source) {
+        return source === 'em' ? KEYS.HOT_RANK_CACHE_EM_KEY : KEYS.HOT_RANK_CACHE_THS_KEY;
+    }
+
+    async function loadHotRankData(source) {
+        source = source || 'ths';
+        var todayKey = utils.getShanghaiDateKey();
+        var cacheKey = hotRankCacheKey(source);
+        var cached = cache.readDailyDataCache(cacheKey);
+        if (cached && cached.date === todayKey && cached.data && Array.isArray(cached.data.items)) {
+            renderHotRank(cached.data.items, source, false);
+            return;
+        }
+        try {
+            var res = await fetch(utils.apiUrl('/hot-rank', { source: source, limit: 20 }));
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            var result = await res.json();
+            if (!result.success || !result.data || !Array.isArray(result.data.items)) throw new Error('数据异常');
+            cache.writeDailyDataCache(cacheKey, todayKey, { source: source, items: result.data.items });
+            renderHotRank(result.data.items, source, true);
+        } catch (e) {
+            console.error('市场热度获取失败:', e);
+            if (cached && cached.date === todayKey && cached.data && Array.isArray(cached.data.items)) {
+                renderHotRank(cached.data.items, source, false);
+                return;
+            }
+            renderHotRankError(source);
+            // 关键 fetch 失败 → toast 提示
+            if (window.AppAlerts && typeof window.AppAlerts.showStatusToast === 'function') {
+                window.AppAlerts.showStatusToast('市场热度接口暂不可用', 'error');
+            }
+        }
+    }
+
+    function renderHotRank(items, source, fresh) {
+        var listId = source === 'em' ? 'hot-rank-list-em' : 'hot-rank-list-ths';
+        var listEl = document.getElementById(listId);
+        var timeEl = document.getElementById('hot-rank-update-time');
+        if (!listEl) return;
+        if (!items.length) { listEl.innerHTML = '<li class="list-empty">暂无数据</li>'; return; }
+        if (timeEl && fresh) {
+            timeEl.textContent = '更新 ' + utils.formatShanghaiTime(new Date().toISOString());
+        }
+        listEl.innerHTML = items.slice(0, 20).map(function (it) {
+            var pctStr = (it.pct > 0 ? '+' : '') + it.pct.toFixed(2) + '%';
+            var pctCls = it.pct > 0 ? 'positive' : it.pct < 0 ? 'negative' : 'neutral';
+            var chgArrow = it.rankChg > 0 ? '↑' + it.rankChg : it.rankChg < 0 ? '↓' + (-it.rankChg) : '-';
+            var chgCls = it.rankChg > 0 ? 'positive' : it.rankChg < 0 ? 'negative' : 'neutral';
+            if (source === 'ths') {
+                var concepts = (it.concepts || []).slice(0, 2)
+                    .map(function (c) { return '<span class="hot-rank-concept">' + utils.escapeHtml(c) + '</span>'; }).join('');
+                var tag = it.tag ? '<span class="hot-rank-tag">' + utils.escapeHtml(it.tag) + '</span>' : '';
+                return '<li class="hot-rank-item">' +
+                    '<span class="hot-rank-rank">' + it.rank + '</span>' +
+                    '<span class="hot-rank-stock"><span class="hot-rank-name">' + utils.escapeHtml(it.name) + '</span><span class="hot-rank-code">' + utils.escapeHtml(it.code) + '</span></span>' +
+                    '<span class="hot-rank-pct ' + pctCls + '">' + pctStr + '</span>' +
+                    '<span class="hot-rank-heat">人气 ' + it.heat + '</span>' +
+                    '<span class="hot-rank-chg ' + chgCls + '">' + chgArrow + '</span>' +
+                    '<span class="hot-rank-concepts">' + concepts + tag + '</span>' +
+                '</li>';
+            } else {
+                var priceStr = (it.price !== null && it.price !== undefined) ? Number(it.price).toFixed(2) : '--';
+                return '<li class="hot-rank-item">' +
+                    '<span class="hot-rank-rank">' + it.rank + '</span>' +
+                    '<span class="hot-rank-stock"><span class="hot-rank-name">' + utils.escapeHtml(it.name) + '</span><span class="hot-rank-code">' + utils.escapeHtml(it.code) + '</span></span>' +
+                    '<span class="hot-rank-price">' + priceStr + '</span>' +
+                    '<span class="hot-rank-pct ' + pctCls + '">' + pctStr + '</span>' +
+                    '<span class="hot-rank-chg ' + chgCls + '">' + chgArrow + '</span>' +
+                '</li>';
+            }
+        }).join('');
+    }
+
+    function renderHotRankError(source) {
+        var listId = source === 'em' ? 'hot-rank-list-em' : 'hot-rank-list-ths';
+        var listEl = document.getElementById(listId);
+        if (listEl) listEl.innerHTML = '<li class="list-empty">市场热度接口暂不可用</li>';
+    }
+
+    function initHotRankTabs() {
+        var saved = getActiveHotRankSource();
+        activateHotRankTab(saved);
+        var tabs = document.querySelectorAll('.hot-rank-tab');
+        tabs.forEach(function (tab) {
+            tab.addEventListener('click', function () {
+                var source = tab.getAttribute('data-source');
+                activateHotRankTab(source);
+                try { localStorage.setItem(KEYS.HOT_RANK_SOURCE_KEY, source); } catch (e) {}
+                loadHotRankData(source);
+            });
+        });
+        // 启动时不主动拉,等 dashboard tab 切到或 loadAllData 触发
+    }
+
+    function activateHotRankTab(source) {
+        var tab = document.querySelector('.hot-rank-tab[data-source="' + source + '"]');
+        if (!tab) return;
+        var parent = tab.parentElement;
+        parent.querySelectorAll('.hot-rank-tab').forEach(function (t) { t.classList.remove('active'); });
+        tab.classList.add('active');
+        var cardBody = tab.closest('.card-body');
+        if (cardBody) {
+            cardBody.querySelectorAll('.hot-rank-panel').forEach(function (p) { p.classList.remove('active'); });
+            var panel = cardBody.querySelector('#hot-rank-panel-' + source);
+            if (panel) panel.classList.add('active');
+        }
+    }
+
+    // ============================================================
+    // 龙虎榜
+    // ============================================================
+
+    // 龙虎榜 cache key — 历史遗留,直接用字面量 (跟原 app.js 一致)
+    var DRAGON_TIGER_CACHE_KEY = 'fund_tracker_dragon_tiger_cache';
+
+    async function loadDragonTigerData(force) {
+        var container = document.getElementById('dragon-tiger-list');
+        var dateEl = document.getElementById('dragon-tiger-date');
+        if (!container) return;
+        var todayKey = utils.getShanghaiDateKey();
+        var cached = cache.readDailyDataCache(DRAGON_TIGER_CACHE_KEY);
+
+        function renderDragonTiger(data) {
+            if (!data || !data.stocks || data.stocks.length === 0) {
+                container.innerHTML = utils.renderEmpty('暂无龙虎榜数据');
+                return;
+            }
+
+            var stocks = data.stocks.slice(0, 20);
+            if (dateEl) dateEl.textContent = data.date || '';
+
+            var html = '';
+            stocks.forEach(function (s) {
+                var netYi = (s.netBuyWan || 0) / 10000;
+                var netCls = netYi > 0 ? 'positive' : netYi < 0 ? 'negative' : '';
+                var netStr = netYi >= 0 ? '+' + netYi.toFixed(2) + '亿' : netYi.toFixed(2) + '亿';
+                html += '<div class="dragon-tiger-item">';
+                html += '  <div class="dragon-tiger-stock"><div class="dragon-tiger-stock-name">' + utils.escapeHtml(s.name) + '</div><div class="dragon-tiger-stock-code">' + utils.escapeHtml(s.code) + '</div></div>';
+                html += '  <span class="dragon-tiger-reason" title="' + utils.escapeHtml(s.reason) + '">' + utils.escapeHtml(s.reason) + '</span>';
+                html += '  <span class="dragon-tiger-net ' + netCls + '">' + utils.escapeHtml(netStr) + '</span>';
+                html += '</div>';
+            });
+            if (html) container.innerHTML = html;
+        }
+
+        if (cached && cached.date === todayKey && cached.data) {
+            renderDragonTiger(cached.data);
+            return;
+        }
+
+        if (!force && !utils.isAfterCloseForDailyUpdate()) {
+            if (cached && cached.data) {
+                renderDragonTiger(cached.data);
+                return;
+            }
+            container.innerHTML = utils.renderEmpty('收盘后更新');
+            if (dateEl) dateEl.textContent = '';
+            return;
+        }
+
+        try {
+            var res = await fetch(utils.apiUrl('/dragon-tiger'));
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            var json = await res.json();
+
+            if (!json.success || !json.data) throw new Error('数据异常');
+            cache.writeDailyDataCache(DRAGON_TIGER_CACHE_KEY, todayKey, json.data);
+            renderDragonTiger(json.data);
+        } catch (e) {
+            console.error('龙虎榜获取失败:', e);
+            if (cached && cached.data) {
+                renderDragonTiger(cached.data);
+                return;
+            }
+            container.innerHTML = utils.renderEmpty('龙虎榜加载失败');
+        }
+    }
+
+    // ============================================================
+    // 异动提醒 (打板层 4 池) — a-stock-data v3.3 §8
+    // ============================================================
+
+    function getActiveLimitUpType() {
+        try {
+            var t = localStorage.getItem(KEYS.LIMIT_UP_TAB_KEY);
+            return KEYS.LIMIT_UP_TYPES.indexOf(t) >= 0 ? t : 'zt';
+        } catch (e) { return 'zt'; }
+    }
+    function setActiveLimitUpType(t) {
+        try { localStorage.setItem(KEYS.LIMIT_UP_TAB_KEY, t); } catch (e) {}
+    }
+
+    async function loadLimitUpData(force) {
+        var list = document.getElementById('limit-up-list');
+        var summary = document.getElementById('limit-up-summary');
+        if (!list || !summary) return;
+        var activeType = getActiveLimitUpType();
+
+        function fmtPct(p) {
+            if (typeof p !== 'number' || !p) return '--';
+            return (p > 0 ? '+' : '') + p.toFixed(2) + '%';
+        }
+        function cls(p) { return p > 0 ? 'positive' : p < 0 ? 'negative' : 'neutral'; }
+
+        function renderRow(type, item) {
+            var pct = item.pct || 0;
+            var pctC = cls(pct);
+            var nameCode = '<div class="limit-up-name-cell">' +
+                '<span class="limit-up-name">' + utils.escapeHtml(item.name || item.code) + '</span>' +
+                '<span class="limit-up-code">' + utils.escapeHtml(item.code) + '</span>' +
+                '</div>';
+            if (type === 'zt') {
+                return '<div class="limit-up-row">' +
+                    nameCode +
+                    '<span class="limit-up-pct ' + pctC + '">' + utils.escapeHtml(fmtPct(pct)) + '</span>' +
+                    '<span class="limit-up-stat">' + utils.escapeHtml(item.ztStat || (item.limitDays + '板')) + '</span>' +
+                    '<span class="limit-up-seal">' + utils.escapeHtml(utils.formatYuan(item.sealFund)) + '</span>' +
+                    '<span class="limit-up-ind">' + utils.escapeHtml(item.industry || '--') + '</span>' +
+                '</div>';
+            }
+            if (type === 'zb') {
+                return '<div class="limit-up-row">' +
+                    nameCode +
+                    '<span class="limit-up-pct ' + pctC + '">' + utils.escapeHtml(fmtPct(pct)) + '</span>' +
+                    '<span class="limit-up-stat">' + utils.escapeHtml(item.ztStat || (item.breakTimes + '次开板')) + '</span>' +
+                    '<span class="limit-up-seal">振幅' + (item.amplitude || 0).toFixed(2) + '%</span>' +
+                    '<span class="limit-up-ind">' + utils.escapeHtml(item.industry || '--') + '</span>' +
+                '</div>';
+            }
+            if (type === 'dt') {
+                return '<div class="limit-up-row">' +
+                    nameCode +
+                    '<span class="limit-up-pct ' + pctC + '">' + utils.escapeHtml(fmtPct(pct)) + '</span>' +
+                    '<span class="limit-up-stat">连续' + (item.dtDays || 0) + '板</span>' +
+                    '<span class="limit-up-seal">封单' + utils.escapeHtml(utils.formatYuan(item.sealFund)) + '</span>' +
+                    '<span class="limit-up-ind">' + utils.escapeHtml(item.industry || '--') + '</span>' +
+                '</div>';
+            }
+            // yzt
+            return '<div class="limit-up-row">' +
+                nameCode +
+                '<span class="limit-up-pct ' + pctC + '">' + utils.escapeHtml(fmtPct(pct)) + '</span>' +
+                '<span class="limit-up-stat">' + utils.escapeHtml(item.ztStat || (item.yLimitDays + '板')) + '</span>' +
+                '<span class="limit-up-seal">涨速' + (item.speed || 0).toFixed(2) + '%</span>' +
+                '<span class="limit-up-ind">' + utils.escapeHtml(item.industry || '--') + '</span>' +
+            '</div>';
+        }
+
+        function renderItems(type, data) {
+            if (!data || !Array.isArray(data.items) || data.items.length === 0) {
+                list.innerHTML = '<div class="limit-up-empty">暂无' + KEYS.LIMIT_UP_TAB_LABELS[type] + '数据 (非交易日或接口暂不可用)</div>';
+                return;
+            }
+            list.innerHTML = data.items.slice(0, 30).map(function (it) { return renderRow(type, it); }).join('');
+        }
+
+        function renderSummary(s) {
+            if (!s) { summary.innerHTML = ''; return; }
+            // 顶部: 涨停 N | 炸板 N (炸板率 X%) | 跌停 N | 昨涨停晋级率 X% | 最高 N 板 | 连板梯队
+            var ladder = s.ladder || {};
+            var ladderStr = Object.keys(ladder).sort(function (a, b) { return a - b; })
+                .map(function (k) { return k + '板' + ladder[k]; }).join(' / ') || '--';
+            summary.innerHTML =
+                '<div class="limit-up-stat-card">' +
+                    '<div class="limit-up-stat-cell"><span class="limit-up-stat-label">涨停</span><span class="limit-up-stat-val positive">' + s.ztCount + '</span></div>' +
+                    '<div class="limit-up-stat-cell"><span class="limit-up-stat-label">炸板</span><span class="limit-up-stat-val">' + s.zbCount + '<span class="limit-up-stat-sub"> ' + s.breakRate + '%</span></span></div>' +
+                    '<div class="limit-up-stat-cell"><span class="limit-up-stat-label">跌停</span><span class="limit-up-stat-val negative">' + s.dtCount + '</span></div>' +
+                    '<div class="limit-up-stat-cell"><span class="limit-up-stat-label">最高</span><span class="limit-up-stat-val">' + s.maxHeight + '板</span></div>' +
+                '</div>' +
+                '<div class="limit-up-stat-ladder">连板梯队: ' + utils.escapeHtml(ladderStr) +
+                ' · 昨涨停晋级率 ' + s.promoteRate + '%</div>';
+        }
+
+        // 1) summary 永远先拉 (顶部卡片) — 日级持久 (跟龙虎榜/资金流卡片一致)
+        var todayKey = utils.getShanghaiDateKey();
+        var sumKey = KEYS.SHORT_CACHE_KEYS.limitUpSummary;
+        var sumCached = cache.readDailyDataCache(sumKey);
+        if (sumCached && sumCached.date === todayKey && sumCached.data) {
+            renderSummary(sumCached.data);
+        } else {
+            try {
+                var sumRes = await fetch(utils.apiUrl('/limit-up', { type: 'summary' }));
+                var sumJson = await sumRes.json();
+                if (sumJson.success) {
+                    cache.writeDailyDataCache(sumKey, todayKey, sumJson.data);
+                    renderSummary(sumJson.data);
+                } else if (sumCached && sumCached.data) {
+                    renderSummary(sumCached.data);
+                }
+            } catch (e) {
+                console.error('异动 summary 获取失败:', e);
+                if (sumCached && sumCached.data) renderSummary(sumCached.data);
+            }
+        }
+
+        // 2) 当前 active type 拉详情 — 日级持久
+        var typeCacheKey = ({
+            zt:  KEYS.SHORT_CACHE_KEYS.limitUpZt,
+            zb:  KEYS.SHORT_CACHE_KEYS.limitUpZb,
+            dt:  KEYS.SHORT_CACHE_KEYS.limitUpDt,
+            yzt: KEYS.SHORT_CACHE_KEYS.limitUpYzt,
+        })[activeType];
+        var typeCached = cache.readDailyDataCache(typeCacheKey);
+        if (typeCached && typeCached.date === todayKey && typeCached.data) {
+            renderItems(activeType, typeCached.data);
+        } else {
+            list.innerHTML = '<div class="limit-up-empty">加载中...</div>';
+            try {
+                var r = await fetch(utils.apiUrl('/limit-up', { type: activeType, limit: 30 }));
+                var j = await r.json();
+                if (j.success) {
+                    cache.writeDailyDataCache(typeCacheKey, todayKey, j.data);
+                    renderItems(activeType, j.data);
+                } else if (typeCached && typeCached.date === todayKey && typeCached.data) {
+                    renderItems(activeType, typeCached.data);
+                } else {
+                    renderItems(activeType, null);
+                    // 关键 fetch 失败 → toast 提示
+                    if (window.AppAlerts && typeof window.AppAlerts.showStatusToast === 'function') {
+                        window.AppAlerts.showStatusToast(
+                            '异动' + KEYS.LIMIT_UP_TAB_LABELS[activeType] + '接口暂不可用', 'error');
+                    }
+                }
+            } catch (e) {
+                console.error('异动' + activeType + '获取失败:', e);
+                if (typeCached && typeCached.date === todayKey && typeCached.data) {
+                    renderItems(activeType, typeCached.data);
+                } else {
+                    renderItems(activeType, null);
+                    // 关键 fetch 失败 → toast 提示
+                    if (window.AppAlerts && typeof window.AppAlerts.showStatusToast === 'function') {
+                        window.AppAlerts.showStatusToast(
+                            '异动' + KEYS.LIMIT_UP_TAB_LABELS[activeType] + '接口暂不可用', 'error');
+                    }
+                }
+            }
+        }
+        activateLimitUpTab(activeType);
+    }
+
+    function activateLimitUpTab(type) {
+        var tab = document.querySelector('.limit-up-tab[data-type="' + type + '"]');
+        if (!tab) return;
+        var parent = tab.parentElement;
+        parent.querySelectorAll('.limit-up-tab').forEach(function (t) { t.classList.remove('active'); });
+        tab.classList.add('active');
+        var body = tab.closest('.card-body');
+        if (body) {
+            body.querySelectorAll('.limit-up-panel').forEach(function (p) { p.classList.remove('active'); });
+            var panel = body.querySelector('#limit-up-panel-' + type);
+            if (panel) panel.classList.add('active');
+        }
+    }
+
+    function initLimitUpTabs() {
+        var saved = getActiveLimitUpType();
+        activateLimitUpTab(saved);
+        var tabs = document.querySelectorAll('.limit-up-tab');
+        tabs.forEach(function (tab) {
+            tab.addEventListener('click', function () {
+                var t = tab.getAttribute('data-type');
+                if (!t || KEYS.LIMIT_UP_TYPES.indexOf(t) < 0) return;
+                setActiveLimitUpType(t);
+                // 切换 tab 时按需加载 (cache 命中直接渲染,否则 fetch)
+                loadLimitUpData();
+            });
+        });
+    }
+
+    window.AppSignals = {
+        // market heat
+        getActiveHotRankSource: getActiveHotRankSource,
+        hotRankCacheKey: hotRankCacheKey,
+        loadHotRankData: loadHotRankData,
+        renderHotRank: renderHotRank,
+        renderHotRankError: renderHotRankError,
+        initHotRankTabs: initHotRankTabs,
+        activateHotRankTab: activateHotRankTab,
+        // dragon tiger
+        loadDragonTigerData: loadDragonTigerData,
+        // limit up
+        getActiveLimitUpType: getActiveLimitUpType,
+        setActiveLimitUpType: setActiveLimitUpType,
+        loadLimitUpData: loadLimitUpData,
+        activateLimitUpTab: activateLimitUpTab,
+        initLimitUpTabs: initLimitUpTabs,
+    };
+})();

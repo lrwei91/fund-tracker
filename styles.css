@@ -970,6 +970,148 @@ body {
     opacity: 1;
 }
 
+/* ---------- 持仓股 "今日资金流" sub-row (4 档 mini bar) — 现在主要用于弹窗 ---------- */
+.watchlist-fund-flow {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 4px;
+}
+.watchlist-fund-row {
+    display: grid;
+    grid-template-columns: 36px 1fr 64px;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 11px;
+}
+.watchlist-fund-label {
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    font-weight: 600;
+    font-size: 10px;
+}
+.watchlist-fund-track {
+    height: 6px;
+    background: var(--bg-surface-alt, rgba(255, 255, 255, 0.04));
+    border-radius: 1px;
+    position: relative;
+    overflow: hidden;
+}
+.watchlist-fund-fill {
+    height: 100%;
+    width: 0;
+    transition: width 0.4s ease;
+    border-radius: 1px;
+}
+.watchlist-fund-fill.positive { background: var(--red); }
+.watchlist-fund-fill.negative { background: var(--green); }
+.watchlist-fund-value {
+    text-align: right;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+.watchlist-fund-value.positive { color: var(--red); }
+.watchlist-fund-value.negative { color: var(--green); }
+.watchlist-fund-value.neutral { color: var(--text-tertiary); }
+
+/* ---------- 持仓股行点击反馈 (弹窗触发) ---------- */
+.watchlist-item.clickable {
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.watchlist-item.clickable:active {
+    background: var(--bg-row, rgba(255, 255, 255, 0.04));
+}
+
+/* ---------- 单股资金流 Modal ---------- */
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 200;
+}
+.modal-overlay[hidden] { display: none !important; }
+.modal-panel {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--bg-surface, #0e0e0e);
+    border: 1px solid var(--border-strong, #333);
+    z-index: 201;
+    width: 92%;
+    max-width: 420px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+}
+/* 关键: [hidden] 属性默认是 display:none, 但上面 .modal-panel 的 display:flex 会覆盖它,
+   所以默认就显示出来、关闭也关不掉. 强制优先级让 hidden 真正生效 */
+.modal-panel[hidden] { display: none !important; }
+.modal-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+}
+.modal-header h3 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+    flex: 0 0 auto;
+}
+.modal-header-time {
+    flex: 1;
+    font-size: 10px;
+    color: var(--text-tertiary);
+    font-family: var(--mono);
+    text-align: right;
+    margin-right: 4px;
+}
+.modal-close {
+    background: transparent;
+    border: none;
+    color: var(--text-tertiary);
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px 8px;
+    font-family: var(--mono);
+    -webkit-tap-highlight-color: transparent;
+}
+.modal-close:active { color: var(--text-primary); }
+.modal-body {
+    padding: 12px;
+}
+.stock-fund-header {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed var(--border-subtle, rgba(255, 255, 255, 0.06));
+}
+.stock-fund-pct {
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+.stock-fund-pct.positive { color: var(--red); }
+.stock-fund-pct.negative { color: var(--green); }
+.stock-fund-pct.neutral { color: var(--text-tertiary); }
+.stock-fund-main {
+    flex: 1;
+    text-align: right;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
 .watchlist-status {
     font-size: 10px;
     padding: 4px 0 0;
@@ -978,26 +1120,25 @@ body {
 }
 .watchlist-status.error { color: var(--red); }
 
-/* ---------- 资金流向 — Compact Inline ---------- */
+/* ---------- 资金流向 — 6 格子 (主力 4 档 + 北向 2 通道) ---------- */
 .capital-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, 1fr);
     gap: 0;
 }
 
 .capital-item {
     background: transparent;
-    padding: 8px 0;
+    padding: 8px 10px;
     text-align: left;
     border-right: 1px solid var(--border);
-    padding-left: 0;
-    padding-right: 10px;
+    border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.04));
 }
 
-.capital-item:last-child {
-    border-right: none;
-    padding-left: 10px;
-}
+/* 3 列布局: 每行末列 (3/6) 拿掉右边框 */
+.capital-item:nth-child(3n) { border-right: none; }
+/* 第 2 行 (4/5/6 北向) 拿掉底边框, 与第 1 行 (资金 4 档) 用底边框分组 */
+.capital-item:nth-child(n+4) { border-bottom: none; padding-top: 10px; }
 
 .capital-label {
     font-size: 11px;
@@ -1019,6 +1160,12 @@ body {
 
 .capital-value.positive { color: var(--red); }
 .capital-value.negative { color: var(--green); }
+
+@media (max-width: 480px) {
+    .capital-grid { grid-template-columns: repeat(2, 1fr); }
+    .capital-item:nth-child(2n) { border-right: none; }
+    .capital-item:nth-child(n+5) { border-bottom: none; padding-top: 10px; }
+}
 
 /* ---------- 板块排行 — Text Tabs ---------- */
 .sector-tabs {
@@ -1088,6 +1235,105 @@ body {
 }
 
 .sector-list .list-empty { border-bottom: none; }
+
+/* ---------- 板块排行 — Diverging Bar Chart ---------- */
+.sector-header-time {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    margin-left: auto;
+    margin-right: 6px;
+    font-family: var(--mono);
+}
+.sector-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.sector-chart-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.sector-group-title {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 0 0 4px 0;
+    font-family: var(--mono);
+}
+.sector-bars {
+    display: flex;
+    flex-direction: column;
+}
+.sector-bar-row {
+    display: grid;
+    grid-template-columns: 88px 1fr 60px 56px;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    font-family: var(--mono);
+    font-size: 12px;
+}
+.sector-bar-name {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.15;
+    min-width: 0;
+}
+.sector-bar-label {
+    color: var(--text-primary);
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.sector-bar-change {
+    font-size: 10px;
+    font-family: var(--mono);
+    margin-top: 1px;
+}
+.sector-bar-change.positive { color: var(--red); }
+.sector-bar-change.negative { color: var(--green); }
+.sector-bar-change.neutral { color: var(--text-tertiary); }
+.sector-bar-track {
+    height: 8px;
+    background: var(--bg-surface-alt, rgba(255, 255, 255, 0.04));
+    border-radius: 1px;
+    position: relative;
+    overflow: hidden;
+}
+.sector-bar-fill {
+    height: 100%;
+    width: 0;
+    transition: width 0.4s ease;
+    border-radius: 1px;
+}
+.sector-bar-fill.positive { background: var(--red); }
+.sector-bar-fill.negative { background: var(--green); }
+.sector-bar-value {
+    text-align: right;
+    font-weight: 700;
+    font-size: 12px;
+    font-family: var(--mono);
+}
+.sector-bar-value.positive { color: var(--red); }
+.sector-bar-value.negative { color: var(--green); }
+.sector-bar-leader {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--mono);
+}
+@media (max-width: 480px) {
+    .sector-bar-row {
+        grid-template-columns: 72px 1fr 56px;
+    }
+    .sector-bar-leader { display: none; }
+}
 .sector-amount.positive { color: var(--red); font-weight: 700; font-family: var(--mono); font-size: 12px; }
 .sector-amount.negative { color: var(--green); font-weight: 700; font-family: var(--mono); font-size: 12px; }
 
@@ -1173,79 +1419,153 @@ body {
 .dragon-tiger-net.positive { color: var(--red); }
 .dragon-tiger-net.negative { color: var(--green); }
 
-/* ---------- 限售解禁 ---------- */
-.lockup-list { }
-.lockup-empty {
+/* ---------- 异动提醒 (打板层 4 池) ---------- */
+.limit-up-header-time {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    margin-left: auto;
+    margin-right: 6px;
+    font-family: var(--mono);
+}
+.limit-up-summary {
+    margin-bottom: 8px;
+}
+.limit-up-stat-card {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+    margin-bottom: 6px;
+}
+.limit-up-stat-cell {
+    padding: 6px 4px;
+    text-align: center;
+    border-right: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+    font-family: var(--mono);
+}
+.limit-up-stat-cell:last-child { border-right: none; }
+.limit-up-stat-label {
+    display: block;
+    font-size: 9px;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-bottom: 2px;
+}
+.limit-up-stat-val {
+    display: block;
+    font-size: 15px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-primary);
+}
+.limit-up-stat-val.positive { color: var(--red); }
+.limit-up-stat-val.negative { color: var(--green); }
+.limit-up-stat-sub {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    font-weight: 400;
+    margin-left: 2px;
+}
+.limit-up-stat-ladder {
+    font-size: 10px;
+    color: var(--text-secondary);
+    font-family: var(--mono);
+    padding: 2px 0 6px 0;
+    line-height: 1.4;
+}
+.limit-up-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 6px;
+    border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+}
+.limit-up-tab {
+    background: transparent;
+    border: none;
+    padding: 5px 10px;
+    color: var(--text-tertiary);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    font-family: inherit;
+    -webkit-tap-highlight-color: transparent;
+}
+.limit-up-tab.active {
+    color: var(--text-primary);
+    border-bottom-color: var(--amber-soft, #ffb340);
+}
+.limit-up-tab:hover:not(.active) { color: var(--text-secondary); }
+.limit-up-list { }
+.limit-up-empty {
     text-align: center;
     padding: 14px 8px;
     color: var(--text-tertiary);
     font-size: 11px;
     font-family: var(--mono);
 }
-
-.lockup-item {
-    display: flex;
+.limit-up-row {
+    display: grid;
+    grid-template-columns: 1fr 56px 60px 76px 60px;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     padding: 6px 0;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.06));
+    font-family: var(--mono);
+    font-size: 11px;
 }
-
-.lockup-item:nth-child(even) {
-    background: var(--bg-row);
+.limit-up-row:nth-child(even) {
+    background: var(--bg-row, rgba(255, 255, 255, 0.04));
     margin: 0 -10px;
     padding-left: 10px;
     padding-right: 10px;
 }
-
-.lockup-item:last-child { border-bottom: none; }
-
-.lockup-stock-info {
-    flex: 0 1 76px;
+.limit-up-row:last-child { border-bottom: none; }
+.limit-up-name-cell {
+    display: flex;
+    flex-direction: column;
     min-width: 0;
+    line-height: 1.15;
 }
-
-.lockup-stock-name {
-    font-size: 12px;
-    font-weight: 600;
+.limit-up-name {
     color: var(--text-primary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 70px;
-}
-
-.lockup-stock-code {
-    font-size: 9px;
-    color: var(--text-tertiary);
-    font-family: var(--mono);
-}
-
-.lockup-type {
-    flex: 1;
-    font-size: 10px;
-    color: var(--text-secondary);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.lockup-date {
-    flex: 0 0 auto;
-    font-size: 11px;
     font-weight: 600;
-    color: var(--text-tertiary);
-    font-family: var(--mono);
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
 }
-
-.lockup-ratio {
-    flex: 0 0 auto;
-    font-size: 11px;
+.limit-up-code {
+    color: var(--text-tertiary);
+    font-size: 9px;
+}
+.limit-up-pct {
+    text-align: right;
     font-weight: 700;
-    color: var(--red);
-    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+}
+.limit-up-pct.positive { color: var(--red); }
+.limit-up-pct.negative { color: var(--green); }
+.limit-up-pct.neutral { color: var(--text-tertiary); }
+.limit-up-stat,
+.limit-up-seal {
+    text-align: right;
+    color: var(--text-secondary);
+    font-size: 10px;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
+}
+.limit-up-ind {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+@media (max-width: 480px) {
+    .limit-up-row { grid-template-columns: 1fr 48px 56px 64px; }
+    .limit-up-ind { display: none; }
 }
 
 /* ---------- 新闻来源 — Text Tabs ---------- */
@@ -1985,3 +2305,185 @@ body {
     text-align: right;
 }
 .settings-number-input:focus { border-color: var(--amber-soft); }
+
+/* ---------- 自选股 120 日资金流 ---------- */
+.fund-flow-header-hint {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    margin-left: auto;
+    margin-right: 6px;
+    font-family: var(--mono);
+}
+.fund-flow-empty {
+    text-align: center;
+    padding: 14px 8px;
+    color: var(--text-tertiary);
+    font-size: 11px;
+    font-family: var(--mono);
+}
+.fund-flow-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--mono);
+    font-size: 12px;
+}
+.fund-flow-table th,
+.fund-flow-table td {
+    padding: 6px 8px;
+    text-align: right;
+    border-bottom: 1px solid var(--border-subtle);
+}
+.fund-flow-table th:first-child,
+.fund-flow-table td:first-child { text-align: left; }
+.fund-flow-table thead th {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background: transparent;
+}
+.fund-flow-table tbody tr:nth-child(even) {
+    background: var(--bg-surface-alt);
+}
+.fund-flow-name {
+    font-weight: 700;
+    color: var(--text-primary);
+}
+.fund-flow-trend {
+    font-size: 14px;
+    letter-spacing: 1px;
+    white-space: nowrap;
+}
+.fund-flow-trend .flow-positive { color: var(--red); }
+.fund-flow-trend .flow-negative { color: var(--green); }
+.fund-flow-trend .flow-neutral { color: var(--text-tertiary); }
+.flow-neutral { color: var(--text-tertiary); }
+
+/* ---------- 市场热度 (同花顺热榜 + 东财人气榜) ---------- */
+.hot-rank-header-time {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    margin-left: auto;
+    margin-right: 6px;
+    font-family: var(--mono);
+}
+.hot-rank-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+.hot-rank-tab {
+    background: transparent;
+    border: none;
+    padding: 6px 12px;
+    color: var(--text-tertiary);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    font-family: inherit;
+}
+.hot-rank-tab.active {
+    color: var(--text-primary);
+    border-bottom-color: var(--amber-soft);
+}
+.hot-rank-tab:hover:not(.active) { color: var(--text-secondary); }
+.hot-rank-panel { display: none; }
+.hot-rank-panel.active { display: block; }
+.hot-rank-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+.hot-rank-item {
+    display: grid;
+    grid-template-columns: 24px 1fr 60px 60px 50px;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 4px;
+    border-bottom: 1px solid var(--border-subtle);
+    font-family: var(--mono);
+    font-size: 12px;
+}
+.hot-rank-item:nth-child(even) {
+    background: var(--bg-surface-alt);
+}
+.hot-rank-item:last-child { border-bottom: none; }
+.hot-rank-rank {
+    text-align: center;
+    font-weight: 700;
+    color: var(--text-tertiary);
+    font-size: 11px;
+}
+.hot-rank-stock {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.hot-rank-name {
+    color: var(--text-primary);
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.hot-rank-code {
+    color: var(--text-tertiary);
+    font-size: 10px;
+}
+.hot-rank-pct {
+    text-align: right;
+    font-weight: 600;
+}
+.hot-rank-pct.positive { color: var(--red); }
+.hot-rank-pct.negative { color: var(--green); }
+.hot-rank-pct.neutral { color: var(--text-tertiary); }
+.hot-rank-heat,
+.hot-rank-price {
+    text-align: right;
+    color: var(--text-secondary);
+    font-size: 11px;
+}
+.hot-rank-chg {
+    text-align: center;
+    font-weight: 700;
+    font-size: 11px;
+}
+.hot-rank-chg.positive { color: var(--red); }
+.hot-rank-chg.negative { color: var(--green); }
+.hot-rank-chg.neutral { color: var(--text-tertiary); }
+.hot-rank-concepts {
+    display: none;  /* 移动到第二行 */
+}
+@media (min-width: 600px) {
+    .hot-rank-item {
+        grid-template-columns: 24px 1fr 60px 60px 50px auto;
+    }
+    .hot-rank-concepts {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+    }
+}
+.hot-rank-concept {
+    display: inline-block;
+    padding: 1px 6px;
+    font-size: 10px;
+    background: var(--amber-soft-bg, rgba(255, 179, 64, 0.12));
+    color: var(--amber-soft, #ffb340);
+    border-radius: 2px;
+    font-family: var(--mono);
+    white-space: nowrap;
+}
+.hot-rank-tag {
+    display: inline-block;
+    padding: 1px 6px;
+    font-size: 10px;
+    background: var(--red-bg, rgba(255, 23, 68, 0.12));
+    color: var(--red, #ff1744);
+    border-radius: 2px;
+    font-family: var(--mono);
+    white-space: nowrap;
+}

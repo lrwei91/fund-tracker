@@ -1,0 +1,273 @@
+// ================================================================
+// 全局 state + localStorage 缓存键 + 启动时 IIFE 还原
+// 暴露到 window.AppState,所有 render-* 模块通过 window.AppState 访问
+// 设计:state 对象在启动时由各 restore* IIFE 填充,modules 后续只读写
+// ================================================================
+
+(function () {
+    // ---------- 通用 keys ----------
+    var SETTINGS_KEY = 'fund_tracker_settings';
+    var ACTIVE_TAB_KEY = 'fund_tracker_active_main_tab';
+    var NEWS_SOURCE_KEY = 'fund_tracker_news_source';
+    var COLLAPSE_STATE_KEY = 'fund_tracker_collapse_state';
+    var SECTOR_TAB_KEY = 'fund_tracker_sector_tab';
+
+    // ---------- 短期缓存键(由 AppCache.readTimedCache/writeTimedCache 使用) ----------
+    // SHORT_CACHE_KEYS 全字段保留;SHORT_CACHE_TTL 只保留 index/capital/sector 三档,
+    // news 和 limitUpSummary 字段原代码已无 readTimedCache 调用方,不再维护 TTL
+    var SHORT_CACHE_KEYS = {
+        index: 'fund_tracker_index_cache',
+        capital: 'fund_tracker_capital_cache',
+        sector: 'fund_tracker_sector_cache',
+        newsJin10: 'fund_tracker_news_jin10_cache',
+        newsEastmoney: 'fund_tracker_news_eastmoney_cache',
+        limitUpZt: 'fund_tracker_limit_up_zt_cache',
+        limitUpZb: 'fund_tracker_limit_up_zb_cache',
+        limitUpDt: 'fund_tracker_limit_up_dt_cache',
+        limitUpYzt: 'fund_tracker_limit_up_yzt_cache',
+        limitUpSummary: 'fund_tracker_limit_up_summary_cache',
+    };
+    var SHORT_CACHE_TTL = {
+        index: 30 * 1000,
+        capital: 5 * 60 * 1000,
+        sector: 5 * 60 * 1000,
+    };
+
+    // ---------- 龙虎榜 / 资金流 / 自选股 / 告警 / 自选指数 ----------
+    var WATCH_QUOTE_CACHE_KEY = 'fund_tracker_watch_quote_cache';
+    var WATCH_QUOTE_UPDATE_TIME_KEY = 'fund_tracker_watch_quote_update_time';
+    var ALERT_SETTINGS_KEY = 'fund_tracker_alert_settings';
+    var WATCH_ALERT_STATE_KEY = 'fund_tracker_watch_alert_state';
+    var CUSTOM_INDICES_KEY = 'fund_tracker_custom_indices';
+    var CUSTOM_INDEX_QUOTE_CACHE_KEY = 'fund_tracker_custom_index_quote_cache';
+    var CUSTOM_INDEX_UPDATE_TIME_KEY = 'fund_tracker_custom_index_update_time';
+    var CUSTOM_INDEX_MAX = 4;
+    var WATCHLIST_COST_KEY = 'fund_tracker_watchlist_cost';
+
+    // 大盘/自选指数:每 30 分钟刷新一次的 prev 快照,用来画 trend-arrow
+    // 结构: { market: { _updatedAt, data: { id: priceValue } }, custom: 同上 }
+    var INDEX_PREV_KEY = 'fund_tracker_index_prev_pct';
+    var INDEX_REFRESH_SECONDS = 300;
+
+    // ---------- 自选股多分组 ----------
+    var STORAGE_KEY = 'fund_tracker_watchlist';
+    var WATCH_TABS_KEY = 'fund_tracker_watchlist_tabs';
+    var ACTIVE_WATCH_TAB_KEY = 'fund_tracker_active_watch_tab';
+    var PREV_KEY = 'fund_tracker_prev_pct';
+    var FIXED_WATCH_TAB_IDS = ['default', 'candidate'];
+    var FIXED_WATCH_TAB_NAMES = { default: '持仓股', candidate: '候选股' };
+
+    // ---------- 自选股资金流 ----------
+    var FUND_FLOW_CACHE_KEY = 'fund_tracker_fund_flow_cache_v2';
+
+    // ---------- 市场热度 ----------
+    var HOT_RANK_SOURCE_KEY = 'fund_tracker_hot_rank_source';
+    var HOT_RANK_CACHE_THS_KEY = 'fund_tracker_hot_rank_ths_cache';
+    var HOT_RANK_CACHE_EM_KEY = 'fund_tracker_hot_rank_em_cache';
+    var HOT_RANK_TAB_HEADERS = { ths: '同花顺热榜', em: '东财人气榜' };
+
+    // ---------- 异动提醒 (打板层 4 池) ----------
+    var LIMIT_UP_TYPES = ['zt', 'zb', 'dt', 'yzt'];
+    var LIMIT_UP_TAB_LABELS = { zt: '涨停', zb: '炸板', dt: '跌停', yzt: '昨涨停' };
+    var LIMIT_UP_TAB_KEY = 'fund_tracker_limit_up_tab';
+
+    // ---------- 告警 toast ----------
+    var ALERT_TOAST_MAX = 5;
+    var ALERT_TOAST_TTL_MS = 20000;
+    var STATUS_TOAST_TTL_MS = 2500;
+
+    // ---------- 主 tab 路由 ----------
+    var VALID_TABS = ['dashboard', 'signals', 'news'];
+    var TAB_TITLES = { dashboard: '市场行情', signals: '市场信号', news: '财经快讯' };
+
+    // ---------- 新闻翻页 ----------
+    var NEWS_PAGE_SIZE = { jin10: 20, eastmoney: 30 };
+
+    // ---------- 自选股节流 ----------
+    var WATCH_REFRESH_THROTTLE_KEY = 'fund_tracker_watch_refresh_throttle';
+    var WATCH_REFRESH_THROTTLE_MS = 5 * 60 * 1000;
+
+    // ---------- Schema 版本:watch alert state 含义变更时 bump ----------
+    var WATCH_ALERT_SCHEMA_VERSION = 2;
+
+    // ============ State (运行时变量) ============
+
+    // 自动刷新 interval 句柄
+    var refreshIntervalMain = null;
+    var refreshIntervalSignal = null;
+    var refreshIntervalNews = null;
+    var refreshIntervalDaily = null;
+    var isAutoRefresh = true;
+    var refreshSecondsMain = 10;
+    var refreshSecondsSignal = 1800;
+    var refreshSecondsNews = 60;
+
+    // 持仓股浮窗设置
+    var holdingColorMode = 'market';
+    var holdingOpacity = 100;
+
+    // 主 tab
+    var currentTab = 'dashboard';
+
+    // 自选股 active tab
+    var activeWatchTabId = 'default';
+
+    // 实时数据缓存
+    var liveIndexData = null;
+    var liveCapitalData = null;
+    var liveSectorData = null;
+
+    // 自选股 / 自选指数 (从 localStorage 还原)
+    var watchQuoteCache = {};
+    var watchQuoteUpdateTime = '';
+    var customIndexCodes = [];
+    var customIndexCache = {};
+    var customIndexUpdateTime = '';
+    var watchlistCost = {};
+    var hasInitialDataLoaded = false;
+
+    // 涨跌幅告警
+    var alertEnabled = true;
+    var alertThreshold = 2;
+    var watchAlertState = {};
+
+    // 新闻源 / 列表 state
+    var currentNewsSource = localStorage.getItem(NEWS_SOURCE_KEY) || 'jin10';
+    var newsState = {
+        jin10: { items: [], cursor: null, hasMore: true, isLoading: false, error: false },
+        eastmoney: { items: [], cursor: null, hasMore: true, isLoading: false, error: false },
+    };
+
+    // ============ 启动时 IIFE 还原 ============
+
+    // 自选股行情(避免非交易时段刷新后变成"待刷新")
+    try {
+        var rawCache = localStorage.getItem(WATCH_QUOTE_CACHE_KEY);
+        if (rawCache) watchQuoteCache = JSON.parse(rawCache) || {};
+    } catch (e) { watchQuoteCache = {}; }
+    try {
+        var rawTime = localStorage.getItem(WATCH_QUOTE_UPDATE_TIME_KEY);
+        if (rawTime) watchQuoteUpdateTime = rawTime;
+    } catch (e) { /* ignore */ }
+
+    // 自选指数(板块/ETF)
+    try {
+        var rawCodes = localStorage.getItem(CUSTOM_INDICES_KEY);
+        if (rawCodes) {
+            var parsed = JSON.parse(rawCodes);
+            if (Array.isArray(parsed)) {
+                customIndexCodes = parsed.filter(function (c) { return /^\d{6}$/.test(c); }).slice(0, CUSTOM_INDEX_MAX);
+            }
+        }
+    } catch (e) { /* ignore */ }
+    try {
+        var rawCustCache = localStorage.getItem(CUSTOM_INDEX_QUOTE_CACHE_KEY);
+        if (rawCustCache) customIndexCache = JSON.parse(rawCustCache) || {};
+    } catch (e) { /* ignore */ }
+    try {
+        var rawCustTime = localStorage.getItem(CUSTOM_INDEX_UPDATE_TIME_KEY);
+        if (rawCustTime) customIndexUpdateTime = rawCustTime;
+    } catch (e) { /* ignore */ }
+
+    // 自选股持仓成本/股数
+    try {
+        var rawCost = localStorage.getItem(WATCHLIST_COST_KEY);
+        if (rawCost) {
+            var parsedCost = JSON.parse(rawCost);
+            if (parsedCost && typeof parsedCost === 'object') watchlistCost = parsedCost;
+        }
+    } catch (e) { /* ignore */ }
+
+    // 告警设置 + 自选股 alert 状态(带 schema 校验)
+    try {
+        var saved = JSON.parse(localStorage.getItem(ALERT_SETTINGS_KEY) || '{}') || {};
+        if (typeof saved.enabled === 'boolean') alertEnabled = saved.enabled;
+        if (typeof saved.threshold === 'number' && saved.threshold > 0 && saved.threshold <= 50) {
+            alertThreshold = saved.threshold;
+        }
+    } catch (e) { /* ignore */ }
+    try {
+        var rawAlertState = JSON.parse(localStorage.getItem(WATCH_ALERT_STATE_KEY) || '{}') || {};
+        if (rawAlertState && rawAlertState.__v !== WATCH_ALERT_SCHEMA_VERSION) {
+            watchAlertState = {};
+            try { localStorage.removeItem(WATCH_ALERT_STATE_KEY); } catch (e) {}
+        } else {
+            watchAlertState = rawAlertState;
+        }
+    } catch (e) { watchAlertState = {}; }
+
+    window.AppState = {
+        // 缓存键
+        KEYS: {
+            SETTINGS_KEY: SETTINGS_KEY,
+            ACTIVE_TAB_KEY: ACTIVE_TAB_KEY,
+            NEWS_SOURCE_KEY: NEWS_SOURCE_KEY,
+            COLLAPSE_STATE_KEY: COLLAPSE_STATE_KEY,
+            SECTOR_TAB_KEY: SECTOR_TAB_KEY,
+            SHORT_CACHE_KEYS: SHORT_CACHE_KEYS,
+            SHORT_CACHE_TTL: SHORT_CACHE_TTL,
+            WATCH_QUOTE_CACHE_KEY: WATCH_QUOTE_CACHE_KEY,
+            WATCH_QUOTE_UPDATE_TIME_KEY: WATCH_QUOTE_UPDATE_TIME_KEY,
+            ALERT_SETTINGS_KEY: ALERT_SETTINGS_KEY,
+            WATCH_ALERT_STATE_KEY: WATCH_ALERT_STATE_KEY,
+            CUSTOM_INDICES_KEY: CUSTOM_INDICES_KEY,
+            CUSTOM_INDEX_QUOTE_CACHE_KEY: CUSTOM_INDEX_QUOTE_CACHE_KEY,
+            CUSTOM_INDEX_UPDATE_TIME_KEY: CUSTOM_INDEX_UPDATE_TIME_KEY,
+            CUSTOM_INDEX_MAX: CUSTOM_INDEX_MAX,
+            WATCHLIST_COST_KEY: WATCHLIST_COST_KEY,
+            INDEX_PREV_KEY: INDEX_PREV_KEY,
+            INDEX_REFRESH_SECONDS: INDEX_REFRESH_SECONDS,
+            STORAGE_KEY: STORAGE_KEY,
+            WATCH_TABS_KEY: WATCH_TABS_KEY,
+            ACTIVE_WATCH_TAB_KEY: ACTIVE_WATCH_TAB_KEY,
+            PREV_KEY: PREV_KEY,
+            FIXED_WATCH_TAB_IDS: FIXED_WATCH_TAB_IDS,
+            FIXED_WATCH_TAB_NAMES: FIXED_WATCH_TAB_NAMES,
+            FUND_FLOW_CACHE_KEY: FUND_FLOW_CACHE_KEY,
+            HOT_RANK_SOURCE_KEY: HOT_RANK_SOURCE_KEY,
+            HOT_RANK_CACHE_THS_KEY: HOT_RANK_CACHE_THS_KEY,
+            HOT_RANK_CACHE_EM_KEY: HOT_RANK_CACHE_EM_KEY,
+            HOT_RANK_TAB_HEADERS: HOT_RANK_TAB_HEADERS,
+            LIMIT_UP_TYPES: LIMIT_UP_TYPES,
+            LIMIT_UP_TAB_LABELS: LIMIT_UP_TAB_LABELS,
+            LIMIT_UP_TAB_KEY: LIMIT_UP_TAB_KEY,
+            ALERT_TOAST_MAX: ALERT_TOAST_MAX,
+            ALERT_TOAST_TTL_MS: ALERT_TOAST_TTL_MS,
+            STATUS_TOAST_TTL_MS: STATUS_TOAST_TTL_MS,
+            VALID_TABS: VALID_TABS,
+            TAB_TITLES: TAB_TITLES,
+            NEWS_PAGE_SIZE: NEWS_PAGE_SIZE,
+            WATCH_REFRESH_THROTTLE_KEY: WATCH_REFRESH_THROTTLE_KEY,
+            WATCH_REFRESH_THROTTLE_MS: WATCH_REFRESH_THROTTLE_MS,
+            WATCH_ALERT_SCHEMA_VERSION: WATCH_ALERT_SCHEMA_VERSION,
+        },
+        // state
+        refreshIntervalMain: refreshIntervalMain,
+        refreshIntervalSignal: refreshIntervalSignal,
+        refreshIntervalNews: refreshIntervalNews,
+        refreshIntervalDaily: refreshIntervalDaily,
+        isAutoRefresh: isAutoRefresh,
+        refreshSecondsMain: refreshSecondsMain,
+        refreshSecondsSignal: refreshSecondsSignal,
+        refreshSecondsNews: refreshSecondsNews,
+        holdingColorMode: holdingColorMode,
+        holdingOpacity: holdingOpacity,
+        currentTab: currentTab,
+        activeWatchTabId: activeWatchTabId,
+        liveIndexData: liveIndexData,
+        liveCapitalData: liveCapitalData,
+        liveSectorData: liveSectorData,
+        watchQuoteCache: watchQuoteCache,
+        watchQuoteUpdateTime: watchQuoteUpdateTime,
+        customIndexCodes: customIndexCodes,
+        customIndexCache: customIndexCache,
+        customIndexUpdateTime: customIndexUpdateTime,
+        watchlistCost: watchlistCost,
+        hasInitialDataLoaded: hasInitialDataLoaded,
+        alertEnabled: alertEnabled,
+        alertThreshold: alertThreshold,
+        watchAlertState: watchAlertState,
+        currentNewsSource: currentNewsSource,
+        newsState: newsState,
+    };
+})();

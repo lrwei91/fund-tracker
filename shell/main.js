@@ -472,7 +472,7 @@ app.whenReady().then(() => {
   createMainWindow()
 
   app.on('activate', () => {
-    showAppFromDock()
+    if (BrowserWindow.getAllWindows().length === 0) createMainWindow()
   })
 })
 
