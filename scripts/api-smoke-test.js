@@ -68,7 +68,8 @@ function hasNonEmptyPayload(name, query, data) {
     if (name === 'fund-flow-120d') {
         return Boolean(data && Array.isArray(data.items) && data.items.length
             && data.items[0].summary && typeof data.items[0].summary.main_5d === 'number'
-            && Array.isArray(data.items[0].recent) && data.items[0].recent.length > 0);
+            && Array.isArray(data.items[0].recent) && data.items[0].recent.length > 0
+            && data.items[0].name);  // 后端必须带 name(腾讯 quote 拿)
     }
     if (name === 'hot-rank') {
         return Boolean(data && Array.isArray(data.items) && data.items.length

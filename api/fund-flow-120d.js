@@ -3,7 +3,7 @@
 // 注意:此接口为个股维度(非行业板块),更符合"自选股用户最关心我关注的几只股最近资金动向"的价值
 //   — 行业板块连续 N 日维度在 a-stock-data 中也仅给到个股端点,行业多日需要 N×N 次拉取(不可行)
 
-const { emGet, fail, ok } = require('./_utils');
+const { emGet, fail, fetchGbkText, ok } = require('./_utils');
 
 const MAX_CODES = 10;   // 单次最多 10 只,防并发打东财
 const MAX_DAYS = 120;
@@ -14,6 +14,42 @@ function marketCode(code) {
     // 6/9 开头 → 沪市 (market=1);其它 → 深市/北市 (market=0)
     // 北市 (8/4 开头) 实测走 0 也工作,东财 secid 实际是 0/1 二元
     return (code.startsWith('6') || code.startsWith('9')) ? 1 : 0;
+}
+
+function tencentSymbol(code) {
+    // 与 api/stock.js 同步:5/6/9 开头 → sh,否则 sz
+    return `${/^(5|6|9)/.test(code) ? 'sh' : 'sz'}${code}`;
+}
+
+// 批量从腾讯 quote 拿名称(单次 HTTP 拿全,避免依赖前端缓存时机)
+async function fetchNames(codes) {
+    if (!codes.length) return {};
+    const symbols = codes.map(tencentSymbol).join(',');
+    let text;
+    try {
+        text = await fetchGbkText(`https://qt.gtimg.cn/q=${symbols}`, {
+            headers: { 'User-Agent': 'Mozilla/5.0' },
+            timeout: 8000,
+        });
+    } catch (e) {
+        // 名称拉取失败不影响主流程,fallback 到空 name,前端会用 code 兜底
+        return {};
+    }
+    const map = {};
+    text.split(';').filter(Boolean).forEach((rawLine) => {
+        const line = rawLine.trim();
+        const eq = line.indexOf('=');
+        if (eq < 0) return;
+        const key = line.slice(2, eq);
+        const code = key.startsWith('sh') || key.startsWith('sz') ? key.slice(2) : key;
+        const quoteMatch = line.match(/="([\s\S]+?)"/);
+        if (!quoteMatch) return;
+        const parts = quoteMatch[1].split('~');
+        if (parts.length >= 2 && code && /^\d{6}$/.test(code)) {
+            map[code] = parts[1];
+        }
+    });
+    return map;
 }
 
 function sleep(ms) {
@@ -39,7 +75,7 @@ async function fetchOneCode(code, days) {
     return json && json.data && Array.isArray(json.data.klines) ? json.data.klines : [];
 }
 
-function summarize(klines, code) {
+function summarize(klines, code, name) {
     // 字段顺序参考 a-stock-data v3.0 §4.5:
     //   date, main_net, small_net, mid_net, large_net, super_net, pct
     // 主流水只展示 parts[1] (主力净流入,单位:元) + parts[6] (涨跌幅%);
@@ -56,6 +92,7 @@ function summarize(klines, code) {
         .reduce((sum, r) => sum + r.mainNet, 0);
     return {
         code,
+        name: name || '',
         recent: recent.slice(-10),  // 最近 10 日明细(渲染紧凑)
         summary: {
             main_5d: sumWindow(5),
@@ -75,14 +112,16 @@ module.exports = async function handler(req, res) {
         const codes = codesRaw.slice(0, MAX_CODES);
         const days = Math.max(MIN_DAYS, Math.min(MAX_DAYS, parseInt(req.query.days, 10) || 60));
 
+        // 先拉一次腾讯 quote 拿名称(1 次 HTTP,失败 fallback 到空 name)
+        const nameMap = await fetchNames(codes);
         // 串行拉取(东财绝不开并发,参考 a-stock-data v3.2 防封铁律)
         const items = [];
         for (const code of codes) {
             try {
                 const klines = await fetchOneCode(code, days);
-                items.push(summarize(klines, code));
+                items.push(summarize(klines, code, nameMap[code]));
             } catch (error) {
-                items.push({ code, error: error.message, recent: [], summary: null });
+                items.push({ code, name: nameMap[code] || '', error: error.message, recent: [], summary: null });
             }
             if (codes.length > 1) await sleep(PER_REQUEST_SLEEP_MS);
         }

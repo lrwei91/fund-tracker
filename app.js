@@ -187,13 +187,13 @@ function switchTab(tab, updateHash) {
     }
 
     // Load tab-specific data when switching panels.
-    if (tab === 'signals') {
+    if (tab === 'dashboard') {
         loadFundFlow120dData();
+    }
+    if (tab === 'signals') {
+        loadHotRankData(getActiveHotRankSource());
         loadDragonTigerData();
         loadLockupData();
-    }
-    if (tab === 'dashboard') {
-        loadHotRankData(getActiveHotRankSource());
     }
     if (tab === 'news') loadNewsData();
 }
@@ -1154,11 +1154,17 @@ async function loadFundFlow120dData(force) {
 
         rowsEl.innerHTML = items.map(function (it) {
             if (it.error || !it.summary) {
-                return '<tr><td class="sector-name-cell">' + escapeHtml(it.code) + '</td>' +
+                return '<tr><td class="sector-name-cell fund-flow-name-cell">' +
+                    '<span class="fund-flow-name">' + escapeHtml(it.name || it.code) + '</span>' +
+                    (it.name ? '<span class="fund-flow-code">' + escapeHtml(it.code) + '</span>' : '') +
+                    '</td>' +
                     '<td colspan="4" class="list-empty">' + escapeHtml(it.error || '暂无数据') + '</td></tr>';
             }
             return '<tr>' +
-                '<td class="sector-name-cell"><span class="fund-flow-name">' + escapeHtml(it.code) + '</span></td>' +
+                '<td class="sector-name-cell fund-flow-name-cell">' +
+                    '<span class="fund-flow-name">' + escapeHtml(it.name || it.code) + '</span>' +
+                    (it.name ? '<span class="fund-flow-code">' + escapeHtml(it.code) + '</span>' : '') +
+                '</td>' +
                 '<td class="' + cls(it.summary.main_5d) + '">' + fmtYuan(it.summary.main_5d) + '</td>' +
                 '<td class="' + cls(it.summary.main_20d) + '">' + fmtYuan(it.summary.main_20d) + '</td>' +
                 '<td class="' + cls(it.summary.main_60d) + '">' + fmtYuan(it.summary.main_60d) + '</td>' +
