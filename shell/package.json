@@ -1,7 +1,7 @@
 {
   "name": "fund-tracker-shell",
   "version": "0.1.0",
-  "description": "Electron 壳：把 fund-tracker web 套成 mac/win 桌面应用",
+  "description": "fund-tracker 本地 Electron 桌面应用",
   "main": "main.js",
   "private": true,
   "scripts": {
@@ -36,7 +36,19 @@
     },
     "files": [
       "main.js",
-      "preload.js"
+      "preload.js",
+      "renderer/**/*",
+      {
+        "from": "..",
+        "to": "web",
+        "filter": [
+          "index.html",
+          "styles.css",
+          "app.js",
+          "modules/**/*",
+          "api/**/*"
+        ]
+      }
     ]
   }
 }

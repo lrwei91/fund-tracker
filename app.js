@@ -15,6 +15,12 @@
     var cache = window.AppCache;
     var KEYS = state.KEYS;
 
+    function initRuntimeShell() {
+        if (window.shell && typeof window.shell.openHoldingWindow === 'function') {
+            document.body.classList.add('electron-app');
+        }
+    }
+
     // ============================================================
     // Settings 持久化
     // ============================================================
@@ -150,14 +156,15 @@
     // ============================================================
 
     function initCollapsible() {
+        var isDesktopApp = document.body.classList.contains('electron-app');
         document.querySelectorAll('.card[data-collapsible="true"]').forEach(function (card) {
             var header = card.querySelector('.card-header');
             var body = card.querySelector('.card-body');
             var collState = cache.readJson(KEYS.COLLAPSE_STATE_KEY, {});
             var key = getCollapsibleKey(card);
-            var isCollapsed = Object.prototype.hasOwnProperty.call(collState, key) ?
+            var isCollapsed = isDesktopApp ? false : (Object.prototype.hasOwnProperty.call(collState, key) ?
                 collState[key] === true :
-                card.getAttribute('data-collapsed') === 'true';
+                card.getAttribute('data-collapsed') === 'true');
 
             if (isCollapsed) {
                 card.setAttribute('data-collapsed', 'true');
@@ -278,6 +285,29 @@
         importBtn.addEventListener('click', function () { fileInput.click(); });
         fileInput.addEventListener('change', function (e) {
             if (window.AppWatchlist) window.AppWatchlist.importWatchlistData(e);
+        });
+    }
+
+    function initHoldingWindowButton() {
+        var btn = document.getElementById('holding-window-btn');
+        if (!btn || !window.shell || typeof window.shell.openHoldingWindow !== 'function') return;
+
+        btn.hidden = false;
+        btn.addEventListener('click', async function () {
+            if (btn.disabled) return;
+            var oldText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = '打开中';
+            try {
+                var result = await window.shell.openHoldingWindow();
+                if (!result || !result.ok) throw new Error(result && result.error ? result.error : 'open failed');
+            } catch (e) {
+                btn.textContent = '失败';
+                setTimeout(function () { btn.textContent = oldText; }, 1200);
+            } finally {
+                btn.disabled = false;
+                if (btn.textContent !== oldText && btn.textContent !== '失败') btn.textContent = oldText;
+            }
         });
     }
 
@@ -603,6 +633,7 @@
     // ============================================================
 
     document.addEventListener('DOMContentLoaded', function () {
+        initRuntimeShell();
         loadSettings();
         initTabs();
         initCollapsible();
@@ -616,6 +647,7 @@
         initSettings();
         syncSettingsControls();
         initDataPanel();
+        initHoldingWindowButton();
         bindEvents();
         if (window.AppWatchlist) window.AppWatchlist.initStockFundFlowModal();
         if (window.AppSignals) window.AppSignals.initLimitUpTabs();

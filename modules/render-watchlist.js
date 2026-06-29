@@ -110,11 +110,48 @@
         });
     }
 
+    function getCodesFromTabs(tabs) {
+        var codeMap = {};
+        tabs.forEach(function (tab) {
+            sanitizeCodes(tab.codes).forEach(function (code) {
+                codeMap[code] = true;
+            });
+        });
+        return codeMap;
+    }
+
+    function normalizeImportedWatchlistCost(rawCost, tabs) {
+        var clean = {};
+        var codeMap = getCodesFromTabs(tabs);
+        if (!rawCost || typeof rawCost !== 'object' || Array.isArray(rawCost)) return clean;
+        Object.keys(rawCost).forEach(function (code) {
+            var entry = rawCost[code];
+            if (!/^\d{6}$/.test(code) || !codeMap[code] || !entry || typeof entry !== 'object') return;
+            var cost = Number(entry.cost);
+            var shares = Number(entry.shares);
+            if (!Number.isFinite(cost) || cost <= 0) return;
+            clean[code] = {
+                cost: cost,
+                shares: Number.isFinite(shares) && shares > 0 ? shares : 0,
+            };
+        });
+        return clean;
+    }
+
+    function getImportedActiveWatchTabId(rawId, tabs) {
+        if (typeof rawId === 'string' && tabs.some(function (tab) { return tab.id === rawId; })) return rawId;
+        return tabs[0].id;
+    }
+
     function getExportPayload() {
+        var tabs = getWatchTabs();
+        var activeWatchTabId = getImportedActiveWatchTabId(state.activeWatchTabId, tabs);
         return {
-            version: 1,
+            version: 2,
             exportedAt: new Date().toISOString(),
-            watchTabs: getWatchTabs(),
+            watchTabs: tabs,
+            activeWatchTabId: activeWatchTabId,
+            watchlistCost: normalizeImportedWatchlistCost(state.watchlistCost, tabs),
         };
     }
 
@@ -145,8 +182,12 @@
             try {
                 var json = JSON.parse(String(reader.result || ''));
                 var tabs = normalizeImportedWatchTabs(json.watchTabs || json.tabs || json);
+                var watchlistCost = normalizeImportedWatchlistCost(json.watchlistCost || json.costs, tabs);
+                var activeWatchTabId = getImportedActiveWatchTabId(json.activeWatchTabId, tabs);
                 saveWatchTabs(tabs);
-                state.activeWatchTabId = tabs[0].id;
+                state.watchlistCost = watchlistCost;
+                saveWatchlistCost();
+                state.activeWatchTabId = activeWatchTabId;
                 localStorage.setItem(KEYS.ACTIVE_WATCH_TAB_KEY, state.activeWatchTabId);
                 state.watchQuoteCache = {};
                 state.watchQuoteUpdateTime = '';
