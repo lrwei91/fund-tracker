@@ -1,22 +1,18 @@
 # fund-tracker 桌面壳
 
-这是 fund-tracker 托管 Web 应用的 Electron 桌面壳：
+这是 fund-tracker 的本地 Electron 桌面应用。
 
-https://fund-tracker-one.vercel.app
-
-打包后的应用名是 `恭喜发财`。桌面壳会直接加载线上 Web 应用，所以普通 Web 发版后，重启桌面应用即可加载最新页面；只有 `shell/` 目录内文件变化时，才需要重新构建桌面壳。
+打包后的应用名是 `恭喜发财`。桌面端不再加载线上 Vercel 页面；主窗口加载打包进应用内的本地看板资源，行情 API 通过 Electron 自定义协议转发到本地 `api/*.js` 处理器。
 
 ## 当前行为
 
-- 主窗口加载线上 fund-tracker 看板。
-- 主窗口右上角会注入固定的 **持仓浮窗** 按钮。
+- 主窗口加载本地 fund-tracker 看板。
+- 主窗口右上角在 Electron 环境下显示 **浮窗** 按钮。
 - 点击按钮后，在当前屏幕右下角打开一个极简、单行、置顶的持仓浮窗。
-- 持仓浮窗加载同一个线上 URL，自动切到行情看板，并注入桌面壳专用的紧凑视图模式，只保留一条自选股信息。
+- 持仓浮窗是独立本地 renderer，不再加载完整看板再裁剪 DOM。
 - 如果持仓股有多条，浮窗每 5 秒自动轮播下一条。
-- 持仓浮窗会隐藏主头部、顶部 Tab、非自选股卡片、自选股分组 Tab、添加输入框、表头、编辑面板、状态文案和删除按钮。
 - 设置面板里的「桌面浮窗 / 价格颜色」可控制浮窗价格和涨跌幅颜色：默认按红绿显示，也可改为全部白色。
 - 设置面板里的「桌面浮窗 / 不透明度」可控制浮窗透明度：默认 100%，最低 0%。
-- 浮窗会先在后台完成 DOM 裁剪，再显示窗口，避免打开时闪出完整网页。
 - 浮窗整体可以拖动；右上角提供 `-`、`□` 和 `x` 三个按钮。
 - 点击 `-` 只隐藏浮窗，不主动拉起主窗口；点击 `□` 或按 `Esc` 会隐藏浮窗并返回主窗口；点击 `x` 只关闭浮窗。
 
@@ -91,24 +87,14 @@ chmod +x "/Applications/恭喜发财.app/Contents/MacOS/恭喜发财"
 
 ## 文件说明
 
-- `main.js`：Electron 主进程，负责窗口创建、IPC、浮窗按钮注入和持仓浮窗 DOM 裁剪。
-- `preload.js`：向线上 Web 页面暴露 `window.shell.openHoldingWindow()`、`window.shell.minimizeHoldingWindow()`、`window.shell.maximizeHoldingWindow()` 和 `window.shell.closeHoldingWindow()`。
+- `main.js`：Electron 主进程，负责窗口创建、IPC、自定义协议和本地 API 转发。
+- `preload.js`：向本地 renderer 暴露 `window.shell.openHoldingWindow()`、`window.shell.minimizeHoldingWindow()`、`window.shell.maximizeHoldingWindow()`、`window.shell.closeHoldingWindow()` 和浮窗刷新事件。
+- `renderer/`：Electron 专用本地 renderer，目前包含独立持仓浮窗页面。
 - `package.json`：Electron 和 electron-builder 配置。
 - `dist/`：本地构建产物目录，已被 `shell/.gitignore` 忽略。
 
 ## 维护说明
 
-持仓浮窗依赖线上 Web 页面的 DOM selector。如果后续 Web 结构调整后，浮窗变空白或显示了过多内容，优先检查 `main.js` 中的 `FOCUS_HOLDING_WIDGET_SCRIPT`。
+主窗口里的 `fetch('/api/...')` 会在桌面端变成 `fund-tracker://app/api/...` 请求，并由 `main.js` 转给仓库根目录的 `api/*.js`。新增 API 文件后，需要确认 `shell/package.json` 的 `build.files` 仍会把它打包进 `web/api/`。
 
-关键 selector：
-
-| Selector | 作用 |
-|---|---|
-| `.tab-btn[data-tab="dashboard"]` | 将线上页面切到行情看板 |
-| `#tab-dashboard` | 包含自选股卡片的行情看板容器 |
-| `#tab-dashboard > section.card` | 默认隐藏行情看板下的所有卡片 |
-| `.watchlist-section` | 持仓浮窗中唯一保留的卡片 |
-| `.watchlist-grid` | 持仓浮窗中的可滚动自选股列表 |
-| `.header`, `.tab-bar`, `.footer` | 持仓浮窗模式下隐藏的页面外层区域 |
-
-`openHoldingWindow()`、`minimizeHoldingWindow()`、`maximizeHoldingWindow()` 和 `closeHoldingWindow()` 使用 `ipcRenderer.invoke`，因此注入按钮可以根据主进程返回值展示打开中或打开失败状态。
+持仓浮窗读取与主窗口同源的 `localStorage`：`fund_tracker_watchlist_tabs`、`fund_tracker_watch_quote_cache` 和 `fund_tracker_settings`。如果后续改动自选股存储结构，需要同步更新 `renderer/holding-widget.js`。
