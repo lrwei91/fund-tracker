@@ -295,13 +295,28 @@
     }
 
     // ============================================================
-    // 自选股 120 日资金流 (a-stock-data v3.0 §4.5)
+    // 自选股 120 日资金流 (push2 fflow/daykline/get)
     // ============================================================
 
     function readFundFlowCache() {
         try { return JSON.parse(localStorage.getItem(KEYS.FUND_FLOW_CACHE_KEY) || 'null'); } catch (e) { return null; }
     }
+    // 缓存项有效性校验:至少 1 个 item,且该 item 有 summary.today (主力/大单/中单/小单 4 档)
+    // 这是必须的:之前 push2 端点失效时返回的 items 全是空壳(recent:[], today:null),
+    // 若直接落盘,会把"空缓存"当成"今日有数据"阻塞后续 fetch
+    function hasValidFundFlowItems(items) {
+        if (!Array.isArray(items) || !items.length) return false;
+        var first = items[0];
+        if (!first || typeof first !== 'object') return false;
+        var today = first.summary && first.summary.today;
+        return Boolean(today
+            && typeof today.main === 'number'
+            && typeof today.large === 'number'
+            && typeof today.medium === 'number'
+            && typeof today.small === 'number');
+    }
     function writeFundFlowCache(date, data) {
+        if (!hasValidFundFlowItems(data)) return;  // 坏数据不写,避免阻塞后续
         try {
             localStorage.setItem(KEYS.FUND_FLOW_CACHE_KEY, JSON.stringify({
                 date: date, data: data, updatedAt: new Date().toISOString(),
@@ -383,7 +398,7 @@
 
         var todayKey = utils.getShanghaiDateKey();
         var cached = readFundFlowCache();
-        if (cached && cached.date === todayKey && cached.data) {
+        if (cached && cached.date === todayKey && hasValidFundFlowItems(cached.data)) {
             renderFundFlowRows(cached.data);
             return;
         }
@@ -397,7 +412,8 @@
             renderFundFlowRows(result.data.items);
         } catch (e) {
             console.error('资金流获取失败:', e);
-            if (cached && cached.data) {
+            // 即便 fetch 失败,也只用"有效"的兜底缓存;坏缓存(从失效端点来的空壳)直接丢弃
+            if (cached && hasValidFundFlowItems(cached.data)) {
                 renderFundFlowRows(cached.data);
                 return;
             }

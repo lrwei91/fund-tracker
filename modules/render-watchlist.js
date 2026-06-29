@@ -766,9 +766,7 @@
     function renderStockFundFlowBody(today, last, prevMain) {
         if (!today || !last) return '<div class="list-empty">暂无当日资金流数据</div>';
 
-        var pct = typeof last.pct === 'number' ? last.pct : 0;
-        var pctCls = pct > 0 ? 'positive' : pct < 0 ? 'negative' : 'neutral';
-        var pctStr = (pct > 0 ? '+' : '') + pct.toFixed(2) + '%';
+        // 注: 不显示涨跌幅 — 弹窗用的是 daykline 接口最近交易日的 pct,与列表实时报价对不上
 
         var items = [
             { key: 'main',   label: '主力' },
@@ -797,7 +795,6 @@
         }).join('');
 
         return '<div class="stock-fund-header">' +
-            '<div class="stock-fund-pct ' + pctCls + '">' + utils.escapeHtml(pctStr) + '</div>' +
             '<div class="stock-fund-main">主力合计 ' + utils.escapeHtml(utils.formatYuan(mainNet)) + utils.escapeHtml(prevMainText) + '</div>' +
             '</div>' +
             '<div class="watchlist-fund-flow">' + rows + '</div>';

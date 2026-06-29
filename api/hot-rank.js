@@ -1,4 +1,4 @@
-// 市场热度（接 a-stock-data v3.3 §10.2 同花顺热榜 + 东财人气榜）
+// 市场热度（同花顺热榜 + 东财人气榜）
 //   - ths: GET  dq.10jqka.com.cn/fuyao/hot_list_data/v1/stock (同花顺,非东财,不走 emGet)
 //   - em:  POST emappdata.eastmoney.com/stockrank/getAllCurrentList (东财,走 emGet + push2 ulist 补名称)
 

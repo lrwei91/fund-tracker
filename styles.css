@@ -1095,15 +1095,6 @@ body {
     padding-bottom: 8px;
     border-bottom: 1px dashed var(--border-subtle, rgba(255, 255, 255, 0.06));
 }
-.stock-fund-pct {
-    font-family: var(--mono);
-    font-size: 18px;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-}
-.stock-fund-pct.positive { color: var(--red); }
-.stock-fund-pct.negative { color: var(--green); }
-.stock-fund-pct.neutral { color: var(--text-tertiary); }
 .stock-fund-main {
     flex: 1;
     text-align: right;

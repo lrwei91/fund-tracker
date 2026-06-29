@@ -50,10 +50,10 @@ async function fetchJson(url, options) {
     return response.json();
 }
 
-// 东财统一请求 helper(同步自 a-stock-data v3.2.5 的 em_get 设计):
+// 东财统一请求 helper(指数退避重试 + 串行限流防封):
 //  - 最多 3 次,指数退避(300ms * 2^n) + 0~100ms 随机抖动
 //  - 重试:HTTP 429 / 5xx,以及网络层错误(AbortError / fetch failed / DNS / 连接重置/超时)
-//  - 不重试:HTTP 403(v3.2.5 设计:靠降频/换网络应对,403 重试只会更快触发风控)
+//  - 不重试:HTTP 403(靠降频/换网络应对,403 重试只会更快触发风控)
 //           其它 4xx(客户端错误,重试无意义)
 //  - 接收东财 6 个子域(push2 / push2his / push2ex / np-weblist / datacenter / searchapi / reportapi)
 //  - 之所以单独抽出:东财 IP 级风控(>5 QPS / 并发≥10 / 1分≥200 / 5分≥300)主要落在调用层,
