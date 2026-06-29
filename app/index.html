@@ -2,16 +2,11 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="#000000">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:; object-src 'none'; base-uri 'self'; form-action 'none'">
     <title>恭喜发财</title>
-    <!-- ?v= 每次部署需要手动 bump（或部署脚本里自动加 commit hash），破浏览器/CDN 缓存 -->
-    <link rel="stylesheet" href="styles.css?v=19">
+    <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body class="electron-app">
 
 <!-- 涨跌幅告警弹窗容器(固定在屏幕最顶部) -->
 <div class="alert-toast-container" id="alert-toast-container" aria-live="polite"></div>

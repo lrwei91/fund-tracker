@@ -15,12 +15,6 @@
     var cache = window.AppCache;
     var KEYS = state.KEYS;
 
-    function initRuntimeShell() {
-        if (window.shell && typeof window.shell.openHoldingWindow === 'function') {
-            document.body.classList.add('electron-app');
-        }
-    }
-
     // ============================================================
     // Settings 持久化
     // ============================================================
@@ -156,23 +150,11 @@
     // ============================================================
 
     function initCollapsible() {
-        var isDesktopApp = document.body.classList.contains('electron-app');
         document.querySelectorAll('.card[data-collapsible="true"]').forEach(function (card) {
             var header = card.querySelector('.card-header');
             var body = card.querySelector('.card-body');
-            var collState = cache.readJson(KEYS.COLLAPSE_STATE_KEY, {});
-            var key = getCollapsibleKey(card);
-            var isCollapsed = isDesktopApp ? false : (Object.prototype.hasOwnProperty.call(collState, key) ?
-                collState[key] === true :
-                card.getAttribute('data-collapsed') === 'true');
-
-            if (isCollapsed) {
-                card.setAttribute('data-collapsed', 'true');
-                body.style.display = 'none';
-            } else {
-                card.setAttribute('data-collapsed', 'false');
-                body.style.display = '';
-            }
+            card.setAttribute('data-collapsed', 'false');
+            body.style.display = '';
 
             header.addEventListener('click', function () {
                 var collapsed = card.getAttribute('data-collapsed') === 'true';
@@ -633,7 +615,6 @@
     // ============================================================
 
     document.addEventListener('DOMContentLoaded', function () {
-        initRuntimeShell();
         loadSettings();
         initTabs();
         initCollapsible();

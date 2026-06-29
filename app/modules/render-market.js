@@ -285,7 +285,7 @@
         inflowEl.innerHTML = renderBars(inflowList, 1);
         outflowEl.innerHTML = renderBars(outflowList, -1);
         // 渲染后批量把 data-w 转成实际宽度(避免在 HTML 字符串里写 inline style,
-        // 绕过 dom-contract 禁内联 style 的检查;走 setProperty 也更稳)
+        // 通过 setProperty 写入动态宽度，避免拼接内联样式字符串。
         [inflowEl, outflowEl].forEach(function (container) {
             var fills = container.querySelectorAll('.sector-bar-fill[data-w]');
             fills.forEach(function (fill) {

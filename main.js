@@ -15,8 +15,8 @@ protocol.registerSchemesAsPrivileged([
   },
 ])
 
-const APP_ROOT = app.isPackaged ? path.join(__dirname, 'web') : path.resolve(__dirname, '..')
-const SHELL_RENDERER_ROOT = path.join(__dirname, 'renderer')
+const APP_ROOT = path.join(__dirname, 'app')
+const RENDERER_ROOT = path.join(__dirname, 'renderer')
 
 const WIDGET_W = 320
 const WIDGET_H = 58
@@ -144,8 +144,8 @@ function registerLocalProtocol() {
         return handleApi(pathname, url.searchParams)
       }
 
-      if (pathname.startsWith('/shell/')) {
-        return staticResponse(SHELL_RENDERER_ROOT, pathname.replace(/^\/shell/, '') || '/holding-widget.html')
+      if (pathname.startsWith('/renderer/')) {
+        return staticResponse(RENDERER_ROOT, pathname.replace(/^\/renderer/, '') || '/holding-widget.html')
       }
 
       return staticResponse(APP_ROOT, pathname)
@@ -172,8 +172,10 @@ function getWidgetBounds() {
 
 function createMainWindow() {
   mainWin = new BrowserWindow({
-    width: 1280,
+    width: 592,
     height: 820,
+    minWidth: 540,
+    minHeight: 680,
     title: '恭喜发财',
     backgroundColor: '#050608',
     ...MAIN_WINDOW_CHROME,
@@ -221,7 +223,7 @@ function createHoldingWidget() {
   })
 
   holdingWin.setMenuBarVisibility(false)
-  holdingWin.loadURL(appUrl('shell/holding-widget.html'))
+  holdingWin.loadURL(appUrl('renderer/holding-widget.html'))
 
   holdingWin.webContents.on('did-finish-load', () => {
     refreshHoldingWidget()

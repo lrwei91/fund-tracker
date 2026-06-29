@@ -1,5 +1,7 @@
-.vercel
 .env*
 .DS_Store
-shell/dist/
-shell/node_modules/
+dist/
+node_modules/
+*.log
+npm-debug.log*
+.electron-builder-cache/

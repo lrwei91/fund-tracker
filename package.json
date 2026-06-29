@@ -1,14 +1,45 @@
 {
-  "name": "fund-tracker",
-  "version": "1.0.0",
+  "name": "fund-tracker-electron",
+  "version": "0.1.0",
+  "description": "恭喜发财本地 Electron 桌面应用",
+  "main": "main.js",
   "private": true,
-  "description": "A-share investment dashboard with serverless API proxies.",
   "scripts": {
-    "dev": "node scripts/dev-server.js",
-    "check": "node --check app.js && for f in api/*.js scripts/*.js; do node --check \"$f\"; done && node scripts/dom-contract-test.js",
-    "test:api": "node scripts/api-smoke-test.js"
+    "start": "electron .",
+    "check": "node --check main.js && node --check preload.js && node --check renderer/holding-widget.js && node --check app/app.js && for f in app/api/*.js app/modules/*.js; do node --check \"$f\"; done",
+    "build:mac": "electron-builder --mac",
+    "build:win": "electron-builder --win --x64",
+    "build:win:arm64": "electron-builder --win --arm64",
+    "build:all": "npm run build:mac && npm run build:win"
   },
-  "engines": {
-    "node": ">=18"
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.local.fundtracker",
+    "productName": "恭喜发财",
+    "directories": {
+      "output": "dist"
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.finance"
+    },
+    "win": {
+      "target": "nsis",
+      "artifactName": "${productName}-${version}-win-${arch}-setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "app/**/*"
+    ]
   }
 }
