@@ -22,7 +22,12 @@
 
     function sanitizeCodes(codes) {
         return Array.isArray(codes)
-            ? codes.filter(function (code, index, arr) { return /^\d{6}$/.test(code) && arr.indexOf(code) === index; })
+            ? codes.map(function (item) {
+                if (item && typeof item === 'object') return item.code || item.id || '';
+                return item;
+            }).map(function (code) {
+                return String(code || '').trim();
+            }).filter(function (code, index, arr) { return /^\d{6}$/.test(code) && arr.indexOf(code) === index; })
             : [];
     }
 
@@ -100,12 +105,19 @@
 
     function normalizeImportedWatchTabs(rawTabs) {
         if (!Array.isArray(rawTabs) || rawTabs.length === 0) throw new Error('文件中没有自选股分组');
+        if (rawTabs.every(function (item) { return /^\d{6}$/.test(String(item || '').trim()); })) {
+            return [
+                { id: 'default', name: '持仓股', codes: sanitizeCodes(rawTabs) },
+                { id: 'candidate', name: '候选股', codes: [] },
+            ];
+        }
         return rawTabs.map(function (tab, index) {
+            tab = tab && typeof tab === 'object' ? tab : {};
             var id = tab.id || (index === 0 ? 'default' : 'tab-import-' + index + '-' + Date.now().toString(36));
             return {
                 id: String(id).slice(0, 48),
                 name: normalizeWatchTabName(String(tab.name || ''), index).slice(0, 12),
-                codes: sanitizeCodes(tab.codes),
+                codes: sanitizeCodes(tab.codes || tab.stocks || tab.items),
             };
         });
     }
@@ -120,15 +132,45 @@
         return codeMap;
     }
 
+    function readNumberFromFields(entry, fields) {
+        for (var i = 0; i < fields.length; i++) {
+            var value = Number(entry[fields[i]]);
+            if (Number.isFinite(value)) return value;
+        }
+        return NaN;
+    }
+
+    function normalizeImportedCostEntry(entry) {
+        if (typeof entry === 'number' || typeof entry === 'string') {
+            return { cost: Number(entry), shares: 0 };
+        }
+        if (!entry || typeof entry !== 'object') return null;
+        return {
+            cost: readNumberFromFields(entry, ['cost', 'costPrice', 'avgCost', 'averageCost', 'buyPrice', 'price']),
+            shares: readNumberFromFields(entry, ['shares', 'quantity', 'qty', 'amount', 'count']),
+        };
+    }
+
     function normalizeImportedWatchlistCost(rawCost, tabs) {
         var clean = {};
         var codeMap = getCodesFromTabs(tabs);
-        if (!rawCost || typeof rawCost !== 'object' || Array.isArray(rawCost)) return clean;
-        Object.keys(rawCost).forEach(function (code) {
-            var entry = rawCost[code];
-            if (!/^\d{6}$/.test(code) || !codeMap[code] || !entry || typeof entry !== 'object') return;
-            var cost = Number(entry.cost);
-            var shares = Number(entry.shares);
+        if (!rawCost || typeof rawCost !== 'object') return clean;
+        var entries = Array.isArray(rawCost)
+            ? rawCost.map(function (entry) {
+                return {
+                    code: entry && typeof entry === 'object' ? String(entry.code || entry.id || '').trim() : '',
+                    value: entry,
+                };
+            })
+            : Object.keys(rawCost).map(function (code) {
+                return { code: String(code).trim(), value: rawCost[code] };
+            });
+        entries.forEach(function (item) {
+            var code = item.code;
+            var normalized = normalizeImportedCostEntry(item.value);
+            if (!/^\d{6}$/.test(code) || !codeMap[code] || !normalized) return;
+            var cost = normalized.cost;
+            var shares = normalized.shares;
             if (!Number.isFinite(cost) || cost <= 0) return;
             clean[code] = {
                 cost: cost,
@@ -136,6 +178,42 @@
             };
         });
         return clean;
+    }
+
+    function collectWatchlistCostFromTabs(rawTabs) {
+        var costMap = {};
+        if (!Array.isArray(rawTabs)) return costMap;
+        rawTabs.forEach(function (tab) {
+            var items = tab && typeof tab === 'object' ? (tab.codes || tab.stocks || tab.items) : null;
+            if (!Array.isArray(items)) return;
+            items.forEach(function (item) {
+                if (!item || typeof item !== 'object') return;
+                var code = String(item.code || item.id || '').trim();
+                if (/^\d{6}$/.test(code)) costMap[code] = item;
+            });
+        });
+        return costMap;
+    }
+
+    function normalizeImportedCustomIndexCodes(rawCodes) {
+        return sanitizeCodes(rawCodes).slice(0, KEYS.CUSTOM_INDEX_MAX);
+    }
+
+    function hasOwn(obj, key) {
+        return !!obj && Object.prototype.hasOwnProperty.call(obj, key);
+    }
+
+    function getRawWatchTabsFromJson(json) {
+        if (Array.isArray(json)) return json;
+        return json.watchTabs || json.tabs || json.watchlistTabs || json.watchlist || json.groups;
+    }
+
+    function getRawCustomIndexCodesFromJson(json) {
+        if (hasOwn(json, 'customIndexCodes')) return json.customIndexCodes;
+        if (hasOwn(json, 'customIndices')) return json.customIndices;
+        if (hasOwn(json, 'customIndex')) return json.customIndex;
+        if (hasOwn(json, 'indices')) return json.indices;
+        return null;
     }
 
     function getImportedActiveWatchTabId(rawId, tabs) {
@@ -147,11 +225,12 @@
         var tabs = getWatchTabs();
         var activeWatchTabId = getImportedActiveWatchTabId(state.activeWatchTabId, tabs);
         return {
-            version: 2,
+            version: 3,
             exportedAt: new Date().toISOString(),
             watchTabs: tabs,
             activeWatchTabId: activeWatchTabId,
             watchlistCost: normalizeImportedWatchlistCost(state.watchlistCost, tabs),
+            customIndexCodes: normalizeImportedCustomIndexCodes(state.customIndexCodes),
         };
     }
 
@@ -171,7 +250,7 @@
         link.click();
         link.remove();
         URL.revokeObjectURL(url);
-        showDataStatus('已导出自选股数据');
+        showDataStatus('已导出自选数据');
     }
 
     function importWatchlistData(e) {
@@ -181,14 +260,26 @@
         reader.onload = function () {
             try {
                 var json = JSON.parse(String(reader.result || ''));
-                var tabs = normalizeImportedWatchTabs(json.watchTabs || json.tabs || json);
-                var watchlistCost = normalizeImportedWatchlistCost(json.watchlistCost || json.costs, tabs);
+                var rawTabs = getRawWatchTabsFromJson(json);
+                var tabs = normalizeImportedWatchTabs(rawTabs);
+                var rawCost = json.watchlistCost || json.holdingCosts || json.costs || json.costMap || json.positions || json.holdings || collectWatchlistCostFromTabs(rawTabs);
+                var watchlistCost = normalizeImportedWatchlistCost(rawCost, tabs);
                 var activeWatchTabId = getImportedActiveWatchTabId(json.activeWatchTabId, tabs);
+                var rawCustomIndexCodes = getRawCustomIndexCodesFromJson(json);
+                var customIndexCodes = rawCustomIndexCodes ? normalizeImportedCustomIndexCodes(rawCustomIndexCodes) : null;
                 saveWatchTabs(tabs);
                 state.watchlistCost = watchlistCost;
                 saveWatchlistCost();
                 state.activeWatchTabId = activeWatchTabId;
                 localStorage.setItem(KEYS.ACTIVE_WATCH_TAB_KEY, state.activeWatchTabId);
+                if (customIndexCodes) {
+                    state.customIndexCodes = customIndexCodes;
+                    state.customIndexCache = {};
+                    state.customIndexUpdateTime = '';
+                    saveCustomIndices();
+                    persistCustomIndexCache();
+                    persistCustomIndexUpdateTime('');
+                }
                 state.watchQuoteCache = {};
                 state.watchQuoteUpdateTime = '';
                 state.watchAlertState = {};
@@ -197,8 +288,10 @@
                 if (window.AppAlerts) window.AppAlerts.saveWatchAlertState();
                 renderWatchTabs();
                 renderWatchlist();
+                renderCustomIndex();
                 loadWatchlistData();
-                showDataStatus('已导入 ' + tabs.length + ' 个分组');
+                if (customIndexCodes) loadCustomIndexData();
+                showDataStatus('已导入 ' + tabs.length + ' 个分组' + (customIndexCodes ? '、' + customIndexCodes.length + ' 个自选指数' : ''));
             } catch (err) {
                 showDataStatus(err.message || '导入失败', 'error');
             } finally {

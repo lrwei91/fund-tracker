@@ -428,26 +428,26 @@
     </div>
 </div>
 
-<!-- 自选股数据面板 -->
+<!-- 自选数据面板 -->
 <div class="data-overlay" id="data-overlay"></div>
 <div class="data-panel" id="data-panel" role="dialog" aria-modal="true" aria-labelledby="data-panel-title">
     <div class="panel-handle"></div>
     <div class="settings-header">
-        <h3 id="data-panel-title">自选股数据</h3>
+        <h3 id="data-panel-title">自选数据</h3>
         <button class="settings-close" id="data-close" aria-label="关闭">✕</button>
     </div>
     <div class="settings-body">
         <div class="data-action">
             <div>
-                <div class="data-action-title">导出自选股</div>
-                <div class="data-action-desc">包含所有分组、股票代码、当前分组和持仓成本。</div>
+                <div class="data-action-title">导出自选数据</div>
+                <div class="data-action-desc">包含自选股分组、持仓成本、股数、当前分组和自选指数。</div>
             </div>
             <button class="data-action-btn" id="export-watchlist-btn" type="button">导出</button>
         </div>
         <div class="data-action">
             <div>
-                <div class="data-action-title">导入自选股</div>
-                <div class="data-action-desc">导入 JSON 后会覆盖当前自选股分组和持仓成本。</div>
+                <div class="data-action-title">导入自选数据</div>
+                <div class="data-action-desc">导入 JSON 后会覆盖自选股分组、持仓成本和自选指数。</div>
             </div>
             <button class="data-action-btn secondary" id="import-watchlist-btn" type="button">导入</button>
             <input type="file" id="import-watchlist-file" accept="application/json,.json" hidden>

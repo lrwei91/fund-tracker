@@ -6,6 +6,7 @@
 
 - 大盘指数：上证、深证、创业板、科创 50
 - 自选股：分组、搜索、添加/移除、持仓成本编辑
+- 自选数据导入导出：备份/恢复自选股分组、当前分组、自选指数、持仓成本和股数
 - 资金流向：主力/大单/中单/小单、沪股通/深股通
 - 自选股资金流：5/20/60 日主力净流入和趋势
 - 市场信号：热榜、龙虎榜、涨停/炸板/跌停/昨涨停
@@ -64,6 +65,8 @@ npm run build:all
 - `fund-tracker://app/renderer/holding-widget.html` 加载 `renderer/holding-widget.html`
 
 主窗口和浮窗共享同源 `localStorage`。如果修改自选股、报价缓存或设置的存储结构，需要同步检查 `renderer/holding-widget.js`。
+
+顶部“导入/导出”会备份/恢复自选股分组、当前分组、自选指数、持仓成本和股数；导入兼容旧版 `costPrice`、`buyPrice`、`quantity`、`positions`、`customIndices` 等字段。
 
 ## 数据说明
 
