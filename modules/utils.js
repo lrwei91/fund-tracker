@@ -101,6 +101,14 @@
             (now.minutes >= 13 * 60 && now.minutes <= 15 * 60 + 5);
     }
 
+    // 开盘连续交易时段:9:30-11:30 / 13:00-15:00
+    function isMarketOpenWindow() {
+        var now = getShanghaiNow();
+        if (!isTradingWeekday(now.weekday)) return false;
+        return (now.minutes >= 9 * 60 + 30 && now.minutes <= 11 * 60 + 30) ||
+            (now.minutes >= 13 * 60 && now.minutes <= 15 * 60);
+    }
+
     // 收盘后日级窗口:16:00-21:00
     function isAfterCloseDailyWindow() {
         var now = getShanghaiNow();
@@ -126,6 +134,7 @@
         renderEmpty: renderEmpty,
         isTradingWeekday: isTradingWeekday,
         isIntradayRefreshWindow: isIntradayRefreshWindow,
+        isMarketOpenWindow: isMarketOpenWindow,
         isAfterCloseDailyWindow: isAfterCloseDailyWindow,
         isAfterCloseForDailyUpdate: isAfterCloseForDailyUpdate,
     };

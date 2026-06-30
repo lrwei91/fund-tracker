@@ -287,16 +287,18 @@ body {
 }
 
 .index-value {
-    font-size: 17px;
+    font-size: clamp(14px, 3.7vw, 17px);
     font-weight: 700;
     font-family: var(--mono);
-    letter-spacing: -0.5px;
+    letter-spacing: 0;
     font-variant-numeric: tabular-nums;
     line-height: 1.2;
     display: inline-flex;
     align-items: baseline;
     gap: 4px;
     max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
 }
 
 .index-value .trend-arrow {
@@ -310,13 +312,14 @@ body {
 .index-value.neutral  { color: var(--text-primary); }
 
 .index-change {
-    font-size: 11px;
+    font-size: clamp(9px, 2.4vw, 11px);
     font-weight: 600;
     margin-top: 1px;
     font-family: var(--mono);
     font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-    line-height: 1.1;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.15;
 }
 
 .index-change.positive { color: var(--red); }
@@ -675,8 +678,9 @@ body {
 .watchlist-item-main {
     min-width: 0;
     display: flex;
-    align-items: baseline;
-    gap: 6px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
 }
 
 .watchlist-stock-name {
@@ -685,8 +689,8 @@ body {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    line-height: 1;
-    flex-shrink: 1;
+    line-height: 1.1;
+    max-width: 100%;
     min-width: 0;
 }
 
@@ -694,7 +698,6 @@ body {
     font-size: 11px;
     color: var(--text-tertiary);
     font-family: var(--mono);
-    flex-shrink: 0;
     line-height: 1;
 }
 
@@ -2136,9 +2139,9 @@ body {
 /* ---------- Alert Toast (涨跌幅告警) ---------- */
 .alert-toast-container {
     position: fixed;
-    top: 0;
-    left: 0;
     right: 0;
+    bottom: 0;
+    width: 66.666vw;
     z-index: 9999;
     display: flex;
     flex-direction: column;
@@ -2146,7 +2149,8 @@ body {
     padding: 8px;
     gap: 6px;
     pointer-events: none;
-    padding-top: calc(8px + env(safe-area-inset-top, 0px));
+    padding-right: calc(8px + env(safe-area-inset-right, 0px));
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
 }
 
 .alert-toast {
@@ -2174,13 +2178,13 @@ body {
 }
 
 @keyframes alert-toast-in {
-    from { opacity: 0; transform: translateY(-12px); }
+    from { opacity: 0; transform: translate(12px, 12px); }
     to   { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes alert-toast-out {
     from { opacity: 1; transform: translateY(0); }
-    to   { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 0; transform: translate(8px, 8px); }
 }
 
 .alert-toast-main {
@@ -2224,28 +2228,49 @@ body {
 }
 
 .alert-toast-detail {
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 8px;
     font-family: var(--mono);
     font-size: 11px;
 }
 
-.alert-toast-price {
+.alert-toast-metric {
+    min-width: 0;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 4px;
+}
+
+.alert-toast-metric-label {
+    color: var(--text-tertiary);
+    font-size: 9px;
+    white-space: nowrap;
+}
+
+.alert-toast-metric-value {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: right;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.alert-toast-price .alert-toast-metric-value {
     color: var(--text-primary);
     font-weight: 600;
     font-size: 13px;
 }
 
-.alert-toast-pct { font-weight: 700; font-size: 12px; }
-.alert-toast-pct.positive { color: var(--green); }
-.alert-toast-pct.negative { color: var(--red); }
-
-.alert-toast-base {
-    color: var(--text-tertiary);
-    font-size: 10px;
-    margin-left: auto;
+.alert-toast-pct .alert-toast-metric-value {
+    font-weight: 700;
+    font-size: 12px;
 }
+.alert-toast-pct.positive .alert-toast-metric-value { color: var(--green); }
+.alert-toast-pct.negative .alert-toast-metric-value { color: var(--red); }
 
 .alert-toast-time {
     font-family: var(--mono);
