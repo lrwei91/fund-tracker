@@ -1,5 +1,5 @@
 // ================================================================
-// 市场行情 — 大盘指数 / 资金流 / 板块 / 自选股 120 日资金流
+// 市场行情 — 大盘指数 / 资金流 / 板块
 // 暴露到 window.AppMarket;
 // 直接 script 引入,无需 import/require
 // 依赖:window.AppState, window.AppUtils, window.AppCache
@@ -132,8 +132,8 @@
     // loadIndexData / loadCapitalData / loadSectorData
     // ============================================================
 
-    async function loadIndexData() {
-        var cached = cache.readTimedCache(KEYS.SHORT_CACHE_KEYS.index, KEYS.SHORT_CACHE_TTL.index);
+    async function loadIndexData(force) {
+        var cached = force ? null : cache.readTimedCache(KEYS.SHORT_CACHE_KEYS.index, KEYS.SHORT_CACHE_TTL.index);
         if (cached) {
             state.liveIndexData = cached;
             Object.keys(cached).forEach(function (id) { updateIndexUI(id, cached[id]); });
@@ -160,9 +160,9 @@
         }
     }
 
-    async function loadCapitalData() {
+    async function loadCapitalData(force) {
         var newData = null;
-        var cached = cache.readTimedCache(KEYS.SHORT_CACHE_KEYS.capital, KEYS.SHORT_CACHE_TTL.capital);
+        var cached = force ? null : cache.readTimedCache(KEYS.SHORT_CACHE_KEYS.capital, KEYS.SHORT_CACHE_TTL.capital);
         if (cached) {
             newData = cached;
         }
@@ -189,9 +189,9 @@
         renderCapitalUI(state.liveCapitalData);
     }
 
-    async function loadSectorData() {
+    async function loadSectorData(force) {
         var newData = null;
-        var cached = cache.readTimedCache(KEYS.SHORT_CACHE_KEYS.sector, KEYS.SHORT_CACHE_TTL.sector);
+        var cached = force ? null : cache.readTimedCache(KEYS.SHORT_CACHE_KEYS.sector, KEYS.SHORT_CACHE_TTL.sector);
         if (cached) {
             newData = cached;
         }
@@ -294,137 +294,6 @@
         });
     }
 
-    // ============================================================
-    // 自选股 120 日资金流 (push2 fflow/daykline/get)
-    // ============================================================
-
-    function readFundFlowCache() {
-        try { return JSON.parse(localStorage.getItem(KEYS.FUND_FLOW_CACHE_KEY) || 'null'); } catch (e) { return null; }
-    }
-    // 缓存项有效性校验:至少 1 个 item,且该 item 有 summary.today (主力/大单/中单/小单 4 档)
-    // 这是必须的:之前 push2 端点失效时返回的 items 全是空壳(recent:[], today:null),
-    // 若直接落盘,会把"空缓存"当成"今日有数据"阻塞后续 fetch
-    function hasValidFundFlowItems(items) {
-        if (!Array.isArray(items) || !items.length) return false;
-        var first = items[0];
-        if (!first || typeof first !== 'object') return false;
-        var today = first.summary && first.summary.today;
-        return Boolean(today
-            && typeof today.main === 'number'
-            && typeof today.large === 'number'
-            && typeof today.medium === 'number'
-            && typeof today.small === 'number');
-    }
-    function writeFundFlowCache(date, data) {
-        if (!hasValidFundFlowItems(data)) return;  // 坏数据不写,避免阻塞后续
-        try {
-            localStorage.setItem(KEYS.FUND_FLOW_CACHE_KEY, JSON.stringify({
-                date: date, data: data, updatedAt: new Date().toISOString(),
-            }));
-        } catch (e) { /* ignore */ }
-    }
-
-    function renderFundFlowEmpty(message) {
-        var emptyEl = document.getElementById('fund-flow-empty');
-        var tableEl = document.getElementById('fund-flow-table');
-        if (emptyEl) { emptyEl.textContent = message; emptyEl.hidden = false; }
-        if (tableEl) tableEl.hidden = true;
-    }
-
-    function renderFundFlowRows(items) {
-        var emptyEl = document.getElementById('fund-flow-empty');
-        var tableEl = document.getElementById('fund-flow-table');
-        var rowsEl = document.getElementById('fund-flow-rows');
-        if (!rowsEl) return;
-        if (emptyEl) emptyEl.hidden = true;
-        if (tableEl) tableEl.hidden = false;
-
-        function cls(v) { return v > 0 ? 'flow-positive' : v < 0 ? 'flow-negative' : 'flow-neutral'; }
-
-        // 趋势条:每根 ▁▂▃▄▅▆▇█ 按主力量级映射(正向红/负向绿配色由 css 控制)
-        var bars = [' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇'];
-        function trendHtml(recent) {
-            return (recent || []).map(function (r) {
-                var abs = Math.abs(r.mainNet || 0);
-                var level = 0;
-                if (abs > 5e8) level = 7;
-                else if (abs > 2e8) level = 6;
-                else if (abs > 1e8) level = 5;
-                else if (abs > 5e7) level = 4;
-                else if (abs > 1e7) level = 3;
-                else if (abs > 1e6) level = 2;
-                else if (abs > 0) level = 1;
-                return '<span class="' + cls(r.mainNet) + '" title="' + utils.escapeHtml(r.date) + ' ' + utils.formatYuan(r.mainNet) + '">' + bars[level] + '</span>';
-            }).join('');
-        }
-
-        rowsEl.innerHTML = items.map(function (it) {
-            // 即使 name 为空也要渲染 code 一行(老 cache 兼容);name 行用 code 兜底
-            var displayName = it.name || it.code;
-            var displayCode = it.code;
-            if (it.error || !it.summary) {
-                return '<tr><td class="sector-name-cell">' +
-                    '<div class="watchlist-item-main">' +
-                        '<div class="watchlist-stock-name">' + utils.escapeHtml(displayName) + '</div>' +
-                        '<div class="watchlist-stock-code">' + utils.escapeHtml(displayCode) + '</div>' +
-                    '</div>' +
-                    '</td>' +
-                    '<td colspan="4" class="list-empty">' + utils.escapeHtml(it.error || '暂无数据') + '</td></tr>';
-            }
-            return '<tr>' +
-                '<td class="sector-name-cell">' +
-                    '<div class="watchlist-item-main">' +
-                        '<div class="watchlist-stock-name">' + utils.escapeHtml(displayName) + '</div>' +
-                        '<div class="watchlist-stock-code">' + utils.escapeHtml(displayCode) + '</div>' +
-                    '</div>' +
-                '</td>' +
-                '<td class="' + cls(it.summary.main_5d) + '">' + utils.formatYuan(it.summary.main_5d) + '</td>' +
-                '<td class="' + cls(it.summary.main_20d) + '">' + utils.formatYuan(it.summary.main_20d) + '</td>' +
-                '<td class="' + cls(it.summary.main_60d) + '">' + utils.formatYuan(it.summary.main_60d) + '</td>' +
-                '<td class="trend-cell fund-flow-trend">' + trendHtml(it.recent) + '</td>' +
-            '</tr>';
-        }).join('');
-    }
-
-    async function loadFundFlow120dData(force) {
-        var watchlistMod = window.AppWatchlist;
-        var codes = watchlistMod && typeof watchlistMod.getWatchlist === 'function'
-            ? watchlistMod.getWatchlist()
-            : [];
-        if (!codes || !codes.length) {
-            renderFundFlowEmpty('添加自选股后查看资金流');
-            return;
-        }
-
-        var todayKey = utils.getShanghaiDateKey();
-        var cached = readFundFlowCache();
-        if (cached && cached.date === todayKey && hasValidFundFlowItems(cached.data)) {
-            renderFundFlowRows(cached.data);
-            return;
-        }
-
-        try {
-            var res = await fetch(utils.apiUrl('/fund-flow-120d', { codes: codes.join(','), days: 60 }));
-            if (!res.ok) throw new Error('HTTP ' + res.status);
-            var result = await res.json();
-            if (!result.success || !result.data || !Array.isArray(result.data.items)) throw new Error('数据异常');
-            writeFundFlowCache(todayKey, result.data.items);
-            renderFundFlowRows(result.data.items);
-        } catch (e) {
-            console.error('资金流获取失败:', e);
-            // 即便 fetch 失败,也只用"有效"的兜底缓存;坏缓存(从失效端点来的空壳)直接丢弃
-            if (cached && hasValidFundFlowItems(cached.data)) {
-                renderFundFlowRows(cached.data);
-                return;
-            }
-            renderFundFlowEmpty('资金流接口暂不可用');
-            // 关键 fetch 失败 → toast 提示
-            if (window.AppAlerts && typeof window.AppAlerts.showStatusToast === 'function') {
-                window.AppAlerts.showStatusToast('资金流接口暂不可用', 'error');
-            }
-        }
-    }
-
     window.AppMarket = {
         // prev 快照
         getIndexPrevPct: getIndexPrevPct,
@@ -442,11 +311,5 @@
         loadSectorData: loadSectorData,
         renderCapitalUI: renderCapitalUI,
         renderSectorUI: renderSectorUI,
-        // 自选股 120 日资金流
-        loadFundFlow120dData: loadFundFlow120dData,
-        readFundFlowCache: readFundFlowCache,
-        writeFundFlowCache: writeFundFlowCache,
-        renderFundFlowRows: renderFundFlowRows,
-        renderFundFlowEmpty: renderFundFlowEmpty,
     };
 })();

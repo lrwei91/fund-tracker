@@ -22,12 +22,12 @@
         return source === 'em' ? KEYS.HOT_RANK_CACHE_EM_KEY : KEYS.HOT_RANK_CACHE_THS_KEY;
     }
 
-    async function loadHotRankData(source) {
+    async function loadHotRankData(source, force) {
         source = source || 'ths';
         var todayKey = utils.getShanghaiDateKey();
         var cacheKey = hotRankCacheKey(source);
         var cached = cache.readDailyDataCache(cacheKey);
-        if (cached && cached.date === todayKey && cached.data && Array.isArray(cached.data.items)) {
+        if (!force && cached && cached.date === todayKey && cached.data && Array.isArray(cached.data.items)) {
             renderHotRank(cached.data.items, source, false);
             return;
         }
@@ -163,7 +163,7 @@
             if (html) container.innerHTML = html;
         }
 
-        if (cached && cached.date === todayKey && cached.data) {
+        if (!force && cached && cached.date === todayKey && cached.data) {
             renderDragonTiger(cached.data);
             return;
         }
@@ -295,7 +295,7 @@
         var todayKey = utils.getShanghaiDateKey();
         var sumKey = KEYS.SHORT_CACHE_KEYS.limitUpSummary;
         var sumCached = cache.readDailyDataCache(sumKey);
-        if (sumCached && sumCached.date === todayKey && sumCached.data) {
+        if (!force && sumCached && sumCached.date === todayKey && sumCached.data) {
             renderSummary(sumCached.data);
         } else {
             try {
@@ -321,7 +321,7 @@
             yzt: KEYS.SHORT_CACHE_KEYS.limitUpYzt,
         })[activeType];
         var typeCached = cache.readDailyDataCache(typeCacheKey);
-        if (typeCached && typeCached.date === todayKey && typeCached.data) {
+        if (!force && typeCached && typeCached.date === todayKey && typeCached.data) {
             renderItems(activeType, typeCached.data);
         } else {
             list.innerHTML = '<div class="limit-up-empty">加载中...</div>';

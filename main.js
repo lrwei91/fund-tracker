@@ -1,6 +1,15 @@
-const { app, BrowserWindow, ipcMain, Menu, protocol, screen } = require('electron')
+const { app, BrowserWindow, ipcMain, Menu, protocol, screen, session, Tray, nativeImage } = require('electron')
 const fs = require('fs')
 const path = require('path')
+
+const IS_WINDOWS = process.platform === 'win32'
+
+if (IS_WINDOWS) {
+  // Windows + transparent always-on-top frameless windows can be unstable on
+  // some GPU drivers when the user switches apps. The UI is lightweight, so
+  // preferring software compositing is the safer default for the desktop build.
+  app.disableHardwareAcceleration()
+}
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -37,7 +46,9 @@ const MIME = {
 
 let mainWin = null
 let holdingWin = null
+let tray = null
 let lastHiddenWindow = 'main'
+let isClearingAndQuitting = false
 
 const MAIN_WINDOW_CHROME = process.platform === 'darwin'
   ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 12, y: 14 } }
@@ -57,6 +68,149 @@ function jsonResponse(status, body) {
 function isInside(root, target) {
   const relative = path.relative(root, target)
   return Boolean(relative) && !relative.startsWith('..') && !path.isAbsolute(relative)
+}
+
+function getLocalDataPaths() {
+  const userData = app.getPath('userData')
+  return {
+    userData,
+    localStorage: path.join(userData, 'Local Storage', 'leveldb'),
+    sessionStorage: path.join(userData, 'Session Storage'),
+    cache: path.join(userData, 'Cache'),
+  }
+}
+
+function logLocalDataPaths(reason) {
+  const paths = getLocalDataPaths()
+  console.info('[fund-tracker] local data paths', {
+    reason,
+    platform: process.platform,
+    ...paths,
+  })
+}
+
+function wireWindowDiagnostics(win, name) {
+  win.webContents.on('render-process-gone', (_event, details) => {
+    console.error('[fund-tracker] renderer gone', { name, details })
+  })
+  win.webContents.on('unresponsive', () => {
+    console.error('[fund-tracker] window unresponsive', { name })
+  })
+}
+
+function createTrayIcon() {
+  const size = 16
+  const bitmap = Buffer.alloc(size * size * 4)
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      const i = (y * size + x) * 4
+      const isBorder = x === 0 || y === 0 || x === size - 1 || y === size - 1
+      const isMark = (x >= 4 && x <= 11 && y >= 4 && y <= 5)
+        || (x >= 4 && x <= 6 && y >= 4 && y <= 11)
+        || (x >= 4 && x <= 11 && y >= 10 && y <= 11)
+        || (x >= 9 && x <= 11 && y >= 8 && y <= 11)
+      if (isBorder) {
+        bitmap[i] = 0x00
+        bitmap[i + 1] = 0x00
+        bitmap[i + 2] = 0x00
+        bitmap[i + 3] = 0xff
+      } else if (isMark) {
+        bitmap[i] = 0x00
+        bitmap[i + 1] = 0xab
+        bitmap[i + 2] = 0xff
+        bitmap[i + 3] = 0xff
+      } else {
+        bitmap[i] = 0x08
+        bitmap[i + 1] = 0x06
+        bitmap[i + 2] = 0x05
+        bitmap[i + 3] = 0xff
+      }
+    }
+  }
+  return nativeImage.createFromBitmap(bitmap, { width: size, height: size })
+}
+
+function removeTrayIcon() {
+  if (!tray) return
+  tray.destroy()
+  tray = null
+}
+
+function restoreHoldingFromTray() {
+  removeTrayIcon()
+  if (holdingWin && !holdingWin.isDestroyed()) {
+    holdingWin.setBounds(getWidgetBounds())
+    refreshHoldingWidget()
+    showHoldingWindow()
+    return
+  }
+  createHoldingWidget()
+}
+
+function ensureTrayIcon() {
+  if (!IS_WINDOWS || tray) return
+  tray = new Tray(createTrayIcon())
+  tray.setToolTip('恭喜发财 - 持仓浮窗')
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: '显示持仓浮窗', click: restoreHoldingFromTray },
+    {
+      label: '退出并清除本地数据',
+      click: () => clearLocalDataAndQuit('windows-tray-quit'),
+    },
+  ]))
+  tray.on('click', restoreHoldingFromTray)
+  tray.on('double-click', restoreHoldingFromTray)
+}
+
+async function clearRendererStorage(win) {
+  if (!win || win.isDestroyed()) return
+  try {
+    await win.webContents.executeJavaScript(
+      'try { localStorage.clear(); sessionStorage.clear(); true } catch (e) { false }',
+      true
+    )
+  } catch (error) {
+    console.warn('[fund-tracker] renderer storage clear failed', error && error.message ? error.message : error)
+  }
+}
+
+async function clearLocalData() {
+  const wins = BrowserWindow.getAllWindows().filter((win) => !win.isDestroyed())
+  await Promise.all(wins.map(clearRendererStorage))
+  try {
+    await session.defaultSession.clearStorageData({
+      storages: [
+        'cookies',
+        'filesystem',
+        'indexdb',
+        'localstorage',
+        'shadercache',
+        'websql',
+        'serviceworkers',
+        'cachestorage',
+      ],
+    })
+  } catch (error) {
+    console.warn('[fund-tracker] scoped storage clear failed, retrying full clear', error && error.message ? error.message : error)
+    await session.defaultSession.clearStorageData()
+  }
+  await session.defaultSession.clearCache()
+}
+
+async function clearLocalDataAndQuit(reason) {
+  if (isClearingAndQuitting) return
+  isClearingAndQuitting = true
+  logLocalDataPaths(reason)
+  try {
+    await clearLocalData()
+  } catch (error) {
+    console.error('[fund-tracker] local data clear failed', error && error.message ? error.message : error)
+  } finally {
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed()) win.destroy()
+    })
+    app.quit()
+  }
 }
 
 function createMemoryResponse() {
@@ -187,9 +341,17 @@ function createMainWindow() {
     },
   })
 
+  wireWindowDiagnostics(mainWin, 'main')
   mainWin.loadURL(appUrl('index.html'))
   Menu.setApplicationMenu(null)
-  mainWin.on('minimize', () => { lastHiddenWindow = 'main' })
+  mainWin.on('minimize', (event) => {
+    if (IS_WINDOWS) {
+      event.preventDefault()
+      clearLocalDataAndQuit('windows-main-minimize')
+      return
+    }
+    lastHiddenWindow = 'main'
+  })
   mainWin.on('closed', () => { mainWin = null })
 }
 
@@ -205,15 +367,21 @@ function createHoldingWidget() {
     ...getWidgetBounds(),
     title: '持仓库',
     frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
+    transparent: !IS_WINDOWS,
+    backgroundColor: IS_WINDOWS ? '#050608' : '#00000000',
     alwaysOnTop: true,
     skipTaskbar: true,
     show: false,
-    resizable: true,
+    resizable: false,
     minimizable: false,
     maximizable: false,
-    hasShadow: false,
+    fullscreenable: false,
+    focusable: !IS_WINDOWS,
+    minWidth: WIDGET_W,
+    maxWidth: WIDGET_W,
+    minHeight: WIDGET_H,
+    maxHeight: WIDGET_H,
+    hasShadow: IS_WINDOWS,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -222,15 +390,13 @@ function createHoldingWidget() {
     },
   })
 
+  wireWindowDiagnostics(holdingWin, 'holding')
   holdingWin.setMenuBarVisibility(false)
   holdingWin.loadURL(appUrl('renderer/holding-widget.html'))
 
   holdingWin.webContents.on('did-finish-load', () => {
     refreshHoldingWidget()
-    if (holdingWin && !holdingWin.isDestroyed()) {
-      holdingWin.show()
-      holdingWin.focus()
-    }
+    showHoldingWindow()
   })
 
   holdingWin.webContents.on('before-input-event', (event, input) => {
@@ -248,10 +414,14 @@ function createHoldingWidget() {
       if (mainWin && !mainWin.isDestroyed()) {
         mainWin.removeListener('close', onMainClose)
       }
+      removeTrayIcon()
       holdingWin = null
     })
   } else {
-    holdingWin.on('closed', () => { holdingWin = null })
+    holdingWin.on('closed', () => {
+      removeTrayIcon()
+      holdingWin = null
+    })
   }
 
   return holdingWin
@@ -265,15 +435,28 @@ function restoreMainWindow() {
   }
 }
 
+function showHoldingWindow() {
+  if (!holdingWin || holdingWin.isDestroyed()) return
+  removeTrayIcon()
+  if (IS_WINDOWS) {
+    holdingWin.showInactive()
+    return
+  }
+  holdingWin.show()
+  holdingWin.focus()
+}
+
 function minimizeHoldingWidget() {
   if (holdingWin && !holdingWin.isDestroyed()) {
     holdingWin.hide()
     lastHiddenWindow = 'holding'
+    ensureTrayIcon()
   }
 }
 
 function closeHoldingWidget() {
   if (holdingWin && !holdingWin.isDestroyed()) holdingWin.hide()
+  removeTrayIcon()
 }
 
 function showAppFromDock() {
@@ -283,8 +466,7 @@ function showAppFromDock() {
   if (lastHiddenWindow === 'holding' && holdingWin && !holdingWin.isDestroyed()) {
     holdingWin.setBounds(getWidgetBounds())
     refreshHoldingWidget()
-    holdingWin.show()
-    holdingWin.focus()
+    showHoldingWindow()
     return
   }
 
@@ -300,8 +482,8 @@ function openHoldingWidget() {
   if (holdingWin && !holdingWin.isDestroyed()) {
     holdingWin.setBounds(getWidgetBounds())
     refreshHoldingWidget()
-    if (!holdingWin.isVisible()) holdingWin.show()
-    holdingWin.focus()
+    if (!holdingWin.isVisible()) showHoldingWindow()
+    else if (!IS_WINDOWS) holdingWin.focus()
   } else {
     createHoldingWidget()
   }
@@ -329,6 +511,7 @@ ipcMain.handle('close-holding-window', () => {
 })
 
 app.whenReady().then(() => {
+  logLocalDataPaths('app-ready')
   registerLocalProtocol()
   createMainWindow()
 
@@ -339,5 +522,6 @@ app.whenReady().then(() => {
 })
 
 app.on('window-all-closed', () => {
+  removeTrayIcon()
   if (process.platform !== 'darwin') app.quit()
 })

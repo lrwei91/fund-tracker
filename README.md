@@ -56,6 +56,15 @@ npm run build:all
 
 构建产物输出到 `dist/`，该目录不入库。
 
+公开打包命令会先自动递增 patch 版本号，并同步写入 `package.json` / `package-lock.json`；`build:*:raw` 仅供内部串联使用，不会改版本号。
+
+macOS 打包版复制到 `/Applications` 后，如遇到系统拦截或提示无权限打开，可执行：
+
+```bash
+xattr -cr "/Applications/恭喜发财.app"
+chmod +x "/Applications/恭喜发财.app/Contents/MacOS/恭喜发财"
+```
+
 ## 运行模型
 
 `main.js` 注册 `fund-tracker://app/` 自定义协议：
@@ -67,6 +76,12 @@ npm run build:all
 主窗口和浮窗共享同源 `localStorage`。如果修改自选股、报价缓存或设置的存储结构，需要同步检查 `renderer/holding-widget.js`。
 
 顶部“导入/导出”会备份/恢复自选股分组、当前分组、自选指数、持仓成本和股数；导入兼容旧版 `costPrice`、`buyPrice`、`quantity`、`positions`、`customIndices` 等字段。
+
+Windows 打包版的本地数据默认在 `%APPDATA%\恭喜发财\` 下，浏览器 `localStorage` 位于 `Local Storage\leveldb`；开发模式通常在 `%APPDATA%\fund-tracker-electron\`。应用启动和 Windows 清理退出时会在日志里输出实际 `userData`、`localStorage`、`sessionStorage` 和 `Cache` 路径。
+
+Windows 安装包启动安装/卸载时会自动结束旧版 `恭喜发财.exe` 和历史包名 `fund-tracker-electron.exe` 进程，避免残留托盘或隐藏窗口占用安装目录。
+
+Windows 浮窗点击最小化会隐藏到系统托盘；单击/双击托盘图标恢复浮窗，右键可退出并清理本地数据。
 
 ## 数据说明
 

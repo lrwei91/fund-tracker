@@ -1,16 +1,20 @@
 {
   "name": "fund-tracker-electron",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "恭喜发财本地 Electron 桌面应用",
   "main": "main.js",
   "private": true,
   "scripts": {
     "start": "electron .",
     "check": "node --check main.js && node --check preload.js && node --check renderer/holding-widget.js && node --check app/app.js && for f in app/api/*.js app/modules/*.js; do node --check \"$f\"; done",
-    "build:mac": "electron-builder --mac",
-    "build:win": "electron-builder --win --x64",
-    "build:win:arm64": "electron-builder --win --arm64",
-    "build:all": "npm run build:mac && npm run build:win"
+    "version:bump": "node scripts/bump-version.js",
+    "build:mac": "npm run version:bump && npm run build:mac:raw",
+    "build:win": "npm run version:bump && npm run build:win:raw",
+    "build:win:arm64": "npm run version:bump && npm run build:win:arm64:raw",
+    "build:all": "npm run version:bump && npm run build:mac:raw && npm run build:win:raw",
+    "build:mac:raw": "electron-builder --mac",
+    "build:win:raw": "electron-builder --win --x64",
+    "build:win:arm64:raw": "electron-builder --win --arm64"
   },
   "devDependencies": {
     "electron": "^31.7.7",
@@ -33,7 +37,8 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "perMachine": false
+      "perMachine": false,
+      "include": "build/installer.nsh"
     },
     "files": [
       "main.js",
