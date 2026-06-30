@@ -35,10 +35,38 @@
     // 告警 toast (涨跌方向)
     // ============================================================
 
+    function formatAlertPrice(value) {
+        return typeof value === 'number' && value > 0 ? value.toFixed(2) : '--';
+    }
+
+    function formatAlertPct(value, withSign) {
+        if (typeof value !== 'number') return '--';
+        var prefix = withSign && value > 0 ? '+' : '';
+        return prefix + value.toFixed(2) + '%';
+    }
+
+    function appendAlertMetric(container, label, value, className) {
+        var item = document.createElement('span');
+        item.className = 'alert-toast-metric' + (className ? ' ' + className : '');
+
+        var labelSpan = document.createElement('span');
+        labelSpan.className = 'alert-toast-metric-label';
+        labelSpan.textContent = label;
+
+        var valueSpan = document.createElement('span');
+        valueSpan.className = 'alert-toast-metric-value';
+        valueSpan.textContent = value;
+
+        item.appendChild(labelSpan);
+        item.appendChild(valueSpan);
+        container.appendChild(item);
+    }
+
     function pushAlertToast(alert) {
         var container = document.getElementById('alert-toast-container');
         if (!container) return;
         if (!alert || typeof alert.price !== 'number') return;
+        if (typeof utils.isMarketOpenWindow === 'function' && !utils.isMarketOpenWindow()) return;
 
         // 限制最大条数,超过则移除最早
         while (container.children.length >= KEYS.ALERT_TOAST_MAX) {
@@ -50,7 +78,8 @@
         var directionLabel = alert.changePct >= 0 ? '▲ 涨' : '▼ 跌';
         var dirClass = alert.changePct >= 0 ? 'alert-up' : 'alert-down';
         var pctClass = alert.changePct >= 0 ? 'positive' : 'negative';
-        var pctText = (alert.changePct >= 0 ? '+' : '') + alert.changePct.toFixed(2) + '%';
+        var pctText = formatAlertPct(alert.changePct, true);
+        var thresholdText = '±' + formatAlertPct(alert.threshold, false);
         var timeText = new Date(alert.time).toLocaleTimeString('zh-CN', {
             timeZone: 'Asia/Shanghai',
             hour: '2-digit',
@@ -82,23 +111,16 @@
 
         var detail = document.createElement('div');
         detail.className = 'alert-toast-detail';
-        var priceSpan = document.createElement('span');
-        priceSpan.className = 'alert-toast-price';
-        priceSpan.textContent = alert.price.toFixed(2);
-        var pctSpan = document.createElement('span');
-        pctSpan.className = 'alert-toast-pct ' + pctClass;
-        pctSpan.textContent = pctText;
-        var baseSpan = document.createElement('span');
-        baseSpan.className = 'alert-toast-base';
         var baseLabel = alert.baseLabel || (alert.baseIsTrigger ? '触发价' : '基准');
-        baseSpan.textContent = baseLabel + ' ' + alert.basePrice.toFixed(2);
-        detail.appendChild(priceSpan);
-        detail.appendChild(pctSpan);
-        detail.appendChild(baseSpan);
+        appendAlertMetric(detail, '当前', formatAlertPrice(alert.price), 'alert-toast-price');
+        appendAlertMetric(detail, '开盘', formatAlertPrice(alert.openPrice));
+        appendAlertMetric(detail, '涨跌', pctText, 'alert-toast-pct ' + pctClass);
+        appendAlertMetric(detail, '阈值', thresholdText);
+        appendAlertMetric(detail, baseLabel, formatAlertPrice(alert.basePrice));
 
         var timeDiv = document.createElement('div');
         timeDiv.className = 'alert-toast-time';
-        timeDiv.textContent = timeText;
+        timeDiv.textContent = '触发时间 ' + timeText;
 
         main.appendChild(title);
         main.appendChild(detail);
@@ -202,6 +224,7 @@
 
     function checkAlerts(quotes) {
         if (!state.alertEnabled) return;
+        if (typeof utils.isMarketOpenWindow === 'function' && !utils.isMarketOpenWindow()) return;
         if (!quotes || typeof quotes !== 'object') return;
         var watchlistMod = window.AppWatchlist;
         if (!watchlistMod || typeof watchlistMod.getWatchTabs !== 'function') return;
@@ -272,9 +295,11 @@
                     code: code,
                     name: d.name || code,
                     price: price,
+                    openPrice: stateEntry.openPrice,
                     changePct: changePct,
                     basePrice: base,
                     baseLabel: baseLabel,
+                    threshold: state.alertThreshold,
                     time: stateEntry.lastTriggerTime,
                 });
             }
