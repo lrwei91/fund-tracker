@@ -140,7 +140,13 @@ body {
   display: flex;
   align-items: center;
   gap: 3px;
+  opacity: 0.68;
   -webkit-app-region: no-drag;
+  transition: opacity 0.12s ease;
+}
+
+.window-controls:hover {
+  opacity: 1;
 }
 
 .window-controls button {
@@ -174,6 +180,26 @@ body {
   font-size: 13px;
   line-height: 13px;
   padding-bottom: 2px;
+}
+
+#clown-mode-btn {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+#clown-mode-btn svg {
+  width: 11px;
+  height: 11px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.45;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+#clown-mode-btn.active {
+  color: #fff;
+  background: rgba(255, 23, 68, 0.78);
 }
 
 #maximize-btn {
