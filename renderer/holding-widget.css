@@ -1,0 +1,213 @@
+:root {
+  --bg: #050608;
+  --text: #f8fafc;
+  --muted: #7b8496;
+  --red: #ff1744;
+  --green: #00e676;
+  --border: rgba(255, 255, 255, 0.08);
+  --font: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --mono: "SF Mono", "Menlo", "Consolas", "JetBrains Mono", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+}
+
+.widget-shell {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--bg);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  opacity: var(--holding-opacity, 1);
+  -webkit-app-region: drag;
+  cursor: grab;
+}
+
+.drag-region {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  -webkit-app-region: drag;
+  cursor: grab;
+}
+
+.quote-slot {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: minmax(64px, 1fr) 54px 70px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+  padding: 0 62px 0 10px;
+  -webkit-app-region: drag;
+  cursor: grab;
+}
+
+.quote-main {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.quote-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.quote-code {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1;
+}
+
+.quote-price {
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1;
+  text-align: right;
+}
+
+.quote-change {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 3px 5px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+  border-radius: 2px;
+}
+
+.positive {
+  color: var(--red);
+}
+
+.negative {
+  color: var(--green);
+}
+
+.neutral {
+  color: var(--text);
+}
+
+.white-mode .quote-price,
+.white-mode .quote-change {
+  color: var(--text);
+  background: transparent;
+}
+
+.quote-empty {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11px;
+  text-align: center;
+}
+
+.window-controls {
+  position: fixed;
+  top: 3px;
+  right: 4px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  opacity: 0.68;
+  -webkit-app-region: no-drag;
+  transition: opacity 0.12s ease;
+}
+
+.window-controls:hover {
+  opacity: 1;
+}
+
+.window-controls button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.68);
+  font: 12px/16px var(--font);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease, transform 0.12s ease;
+}
+
+.window-controls button:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.22);
+  transform: translateY(-1px);
+}
+
+.window-controls button:active {
+  background: rgba(255, 255, 255, 0.28);
+  transform: translateY(0);
+}
+
+#minimize-btn {
+  font-size: 13px;
+  line-height: 13px;
+  padding-bottom: 2px;
+}
+
+#clown-mode-btn {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+#clown-mode-btn svg {
+  width: 11px;
+  height: 11px;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.45;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+#clown-mode-btn.active {
+  color: #fff;
+  background: rgba(255, 23, 68, 0.78);
+}
+
+#maximize-btn {
+  font-size: 10px;
+  line-height: 10px;
+  padding-bottom: 1px;
+}
+
+#close-btn:hover {
+  background: rgba(255, 70, 70, 0.34);
+}

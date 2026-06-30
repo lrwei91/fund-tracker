@@ -2,19 +2,70 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="theme-color" content="#000000">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data: blob:; object-src 'none'; base-uri 'self'; form-action 'none'">
     <title>恭喜发财</title>
-    <!-- ?v= 每次部署需要手动 bump（或部署脚本里自动加 commit hash），破浏览器/CDN 缓存 -->
-    <link rel="stylesheet" href="styles.css?v=19">
+    <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body class="electron-app">
 
 <!-- 涨跌幅告警弹窗容器(固定在屏幕最顶部) -->
 <div class="alert-toast-container" id="alert-toast-container" aria-live="polite"></div>
 
+<div class="app-shell">
+<aside class="desktop-sidebar" aria-label="桌面导航">
+    <div class="desktop-brand">
+        <div class="desktop-brand-mark">G</div>
+        <div>
+            <div class="desktop-brand-name">恭喜发财</div>
+            <div class="desktop-brand-subtitle">LOCAL MARKET</div>
+        </div>
+    </div>
+    <nav class="desktop-nav">
+        <button class="desktop-nav-btn tab-btn active" data-tab="dashboard" type="button">
+            <span class="desktop-nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                    <path d="M4 17.5h16M6 14l3.5-3.5 3 3L18 7" />
+                    <path d="M18 7v4.5M18 7h-4.5" />
+                </svg>
+            </span>
+            <span class="desktop-nav-copy">
+                <span class="desktop-nav-label">行情</span>
+                <span class="desktop-nav-meta">指数 · 自选 · 资金流</span>
+            </span>
+        </button>
+        <button class="desktop-nav-btn tab-btn" data-tab="signals" type="button">
+            <span class="desktop-nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                    <path d="M5 18h14" />
+                    <path d="M7 15l3.2-5 3.1 3.2L17 6" />
+                    <path d="M17 6v4M17 6h-4" />
+                </svg>
+            </span>
+            <span class="desktop-nav-copy">
+                <span class="desktop-nav-label">信号</span>
+                <span class="desktop-nav-meta">热度 · 龙虎榜 · 异动</span>
+            </span>
+        </button>
+        <button class="desktop-nav-btn tab-btn" data-tab="news" type="button">
+            <span class="desktop-nav-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                    <path d="M6 5.5h12v13H6z" />
+                    <path d="M9 9h6M9 12h6M9 15h3.5" />
+                </svg>
+            </span>
+            <span class="desktop-nav-copy">
+                <span class="desktop-nav-label">快讯</span>
+                <span class="desktop-nav-meta">金十 · 东财资讯</span>
+            </span>
+        </button>
+    </nav>
+    <div class="desktop-sidebar-footer">
+        <span class="desktop-status-dot"></span>
+        <span>本地 API</span>
+    </div>
+</aside>
+
+<div class="app-main-pane">
 <!-- 头部 -->
 <header class="header" id="header">
     <div class="header-left">
@@ -22,6 +73,7 @@
         <div class="header-subtitle" id="last-updated">等待更新</div>
     </div>
     <div class="header-right">
+        <button class="header-btn electron-only" id="holding-window-btn" aria-label="打开持仓浮窗" title="持仓浮窗" hidden>浮窗</button>
         <button class="header-btn" id="watchlist-data-btn" aria-label="自选股导入导出" title="自选股数据">导入/导出</button>
         <button class="header-btn" id="refresh-btn" aria-label="刷新" title="刷新全部数据">刷新</button>
         <button class="header-btn" id="settings-btn" aria-label="设置" title="设置">设置</button>
@@ -40,6 +92,7 @@
     <!-- ==================== 市场行情 Tab ==================== -->
     <div class="tab-panel active" id="tab-dashboard">
 
+        <div class="dashboard-column dashboard-market-column">
         <!-- 1. 大盘指数 -->
         <section class="card index-section" data-collapsible="false">
             <div class="card-header">
@@ -82,13 +135,14 @@
                 <div class="index-grid" id="custom-index-grid"></div>
             </div>
         </section>
+        </div>
 
+        <div class="dashboard-column dashboard-holdings-column">
         <!-- 2. 自选股 -->
         <section class="card watchlist-section" data-collapsible="true">
             <div class="card-header" role="button" tabindex="0">
                 <h2>自选股</h2>
                 <span class="watchlist-header-time" id="watchlist-update-time"></span>
-                <button class="watchlist-edit-btn" id="watchlist-edit-btn" type="button" aria-label="编辑持仓成本">编辑</button>
                 <span class="collapse-icon">▼</span>
             </div>
             <div class="card-body">
@@ -99,13 +153,6 @@
                 <div class="watchlist-add">
                     <input type="text" id="stock-code-input" placeholder="输入代码或股票名，如 600519 / 贵州茅台">
                     <button id="add-stock-btn" class="add-btn">添加</button>
-                </div>
-                <div class="watchlist-edit-panel" id="watchlist-edit-panel" hidden>
-                    <div class="watchlist-edit-panel-header">
-                        <div class="watchlist-edit-panel-title">编辑持仓成本 / 股数</div>
-                        <div class="watchlist-edit-panel-hint">填完后点上方"保存"</div>
-                    </div>
-                    <div class="watchlist-edit-rows" id="watchlist-edit-rows"></div>
                 </div>
                 <div class="watchlist-header-row">
                     <span class="watchlist-header-name">股票名</span>
@@ -120,6 +167,9 @@
             </div>
         </section>
 
+        </div>
+
+        <div class="dashboard-column dashboard-flow-column">
         <!-- 3. 资金流向 (主力 4 档 + 北向 2 通道,共 6 格子) -->
         <section class="card capital-section" data-collapsible="true">
             <div class="card-header" role="button" tabindex="0">
@@ -176,30 +226,7 @@
                 </div>
             </div>
         </section>
-
-        <!-- 5. 自选股资金流 (push2 fflow/daykline/get;从信号 tab 上移) -->
-        <section class="card fund-flow-section" data-collapsible="true" data-collapsed="true">
-            <div class="card-header" role="button" tabindex="0">
-                <h2>自选股资金流</h2>
-                <span class="fund-flow-header-hint" id="fund-flow-hint">5/20/60 日主力净流入</span>
-                <span class="collapse-icon">▼</span>
-            </div>
-            <div class="card-body">
-                <div class="fund-flow-empty" id="fund-flow-empty">添加自选股后查看资金流</div>
-                <table class="fund-flow-table" id="fund-flow-table" hidden>
-                    <thead>
-                        <tr>
-                            <th>股票</th>
-                            <th>5日</th>
-                            <th>20日</th>
-                            <th>60日</th>
-                            <th>近10日趋势</th>
-                        </tr>
-                    </thead>
-                    <tbody id="fund-flow-rows"></tbody>
-                </table>
-            </div>
-        </section>
+        </div>
 
     </div>
 
@@ -291,8 +318,10 @@
 <!-- 页脚 -->
 <footer class="footer">
     <p>数据仅供参考，不构成投资建议</p>
-    <p>数据来源：新浪财经 · 金十数据 · 东方财富 · Vercel API</p>
+    <p>数据来源：新浪财经 · 金十数据 · 东方财富 · 本地 API</p>
 </footer>
+</div>
+</div>
 
 <!-- 设置面板 -->
 <div class="settings-overlay" id="settings-overlay"></div>
@@ -368,26 +397,26 @@
     </div>
 </div>
 
-<!-- 自选股数据面板 -->
+<!-- 自选数据面板 -->
 <div class="data-overlay" id="data-overlay"></div>
 <div class="data-panel" id="data-panel" role="dialog" aria-modal="true" aria-labelledby="data-panel-title">
     <div class="panel-handle"></div>
     <div class="settings-header">
-        <h3 id="data-panel-title">自选股数据</h3>
+        <h3 id="data-panel-title">自选数据</h3>
         <button class="settings-close" id="data-close" aria-label="关闭">✕</button>
     </div>
     <div class="settings-body">
         <div class="data-action">
             <div>
-                <div class="data-action-title">导出自选股</div>
-                <div class="data-action-desc">包含所有子 tab 和对应股票代码。</div>
+                <div class="data-action-title">导出自选数据</div>
+                <div class="data-action-desc">包含自选股分组、持仓成本、股数、当前分组和自选指数。</div>
             </div>
             <button class="data-action-btn" id="export-watchlist-btn" type="button">导出</button>
         </div>
         <div class="data-action">
             <div>
-                <div class="data-action-title">导入自选股</div>
-                <div class="data-action-desc">导入 JSON 后会覆盖当前自选股分组。</div>
+                <div class="data-action-title">导入自选数据</div>
+                <div class="data-action-desc">导入 JSON 后会覆盖自选股分组、持仓成本和自选指数。</div>
             </div>
             <button class="data-action-btn secondary" id="import-watchlist-btn" type="button">导入</button>
             <input type="file" id="import-watchlist-file" accept="application/json,.json" hidden>
@@ -410,6 +439,7 @@
 </div>
 
 <!-- Modules 加载顺序:utils → state → cache → render-* (共享 window 全局,顺序互不依赖) → app.js 入口 -->
+<script src="modules/storage.js"></script>
 <script src="modules/utils.js"></script>
 <script src="modules/state.js"></script>
 <script src="modules/cache.js"></script>

@@ -3,7 +3,7 @@
 // 暴露到 window.AppWatchlist;
 // 直接 script 引入,无需 import/require
 // 依赖:window.AppState, window.AppUtils, window.AppCache
-// 跨模块依赖:window.AppAlerts (toast), window.AppMarket (loadFundFlow120dData, prev bucket, snapshotIndexPrice)
+// 跨模块依赖:window.AppAlerts (toast), window.AppMarket (prev bucket, snapshotIndexPrice)
 // ================================================================
 
 (function () {
@@ -22,7 +22,12 @@
 
     function sanitizeCodes(codes) {
         return Array.isArray(codes)
-            ? codes.filter(function (code, index, arr) { return /^\d{6}$/.test(code) && arr.indexOf(code) === index; })
+            ? codes.map(function (item) {
+                if (item && typeof item === 'object') return item.code || item.id || '';
+                return item;
+            }).map(function (code) {
+                return String(code || '').trim();
+            }).filter(function (code, index, arr) { return /^\d{6}$/.test(code) && arr.indexOf(code) === index; })
             : [];
     }
 
@@ -100,21 +105,132 @@
 
     function normalizeImportedWatchTabs(rawTabs) {
         if (!Array.isArray(rawTabs) || rawTabs.length === 0) throw new Error('文件中没有自选股分组');
+        if (rawTabs.every(function (item) { return /^\d{6}$/.test(String(item || '').trim()); })) {
+            return [
+                { id: 'default', name: '持仓股', codes: sanitizeCodes(rawTabs) },
+                { id: 'candidate', name: '候选股', codes: [] },
+            ];
+        }
         return rawTabs.map(function (tab, index) {
+            tab = tab && typeof tab === 'object' ? tab : {};
             var id = tab.id || (index === 0 ? 'default' : 'tab-import-' + index + '-' + Date.now().toString(36));
             return {
                 id: String(id).slice(0, 48),
                 name: normalizeWatchTabName(String(tab.name || ''), index).slice(0, 12),
-                codes: sanitizeCodes(tab.codes),
+                codes: sanitizeCodes(tab.codes || tab.stocks || tab.items),
             };
         });
     }
 
-    function getExportPayload() {
+    function getCodesFromTabs(tabs) {
+        var codeMap = {};
+        tabs.forEach(function (tab) {
+            sanitizeCodes(tab.codes).forEach(function (code) {
+                codeMap[code] = true;
+            });
+        });
+        return codeMap;
+    }
+
+    function readNumberFromFields(entry, fields) {
+        for (var i = 0; i < fields.length; i++) {
+            var value = Number(entry[fields[i]]);
+            if (Number.isFinite(value)) return value;
+        }
+        return NaN;
+    }
+
+    function normalizeImportedCostEntry(entry) {
+        if (typeof entry === 'number' || typeof entry === 'string') {
+            return { cost: Number(entry), shares: 0 };
+        }
+        if (!entry || typeof entry !== 'object') return null;
         return {
-            version: 1,
+            cost: readNumberFromFields(entry, ['cost', 'costPrice', 'avgCost', 'averageCost', 'buyPrice', 'price']),
+            shares: readNumberFromFields(entry, ['shares', 'quantity', 'qty', 'amount', 'count']),
+        };
+    }
+
+    function normalizeImportedWatchlistCost(rawCost, tabs) {
+        var clean = {};
+        var codeMap = getCodesFromTabs(tabs);
+        if (!rawCost || typeof rawCost !== 'object') return clean;
+        var entries = Array.isArray(rawCost)
+            ? rawCost.map(function (entry) {
+                return {
+                    code: entry && typeof entry === 'object' ? String(entry.code || entry.id || '').trim() : '',
+                    value: entry,
+                };
+            })
+            : Object.keys(rawCost).map(function (code) {
+                return { code: String(code).trim(), value: rawCost[code] };
+            });
+        entries.forEach(function (item) {
+            var code = item.code;
+            var normalized = normalizeImportedCostEntry(item.value);
+            if (!/^\d{6}$/.test(code) || !codeMap[code] || !normalized) return;
+            var cost = normalized.cost;
+            var shares = normalized.shares;
+            if (!Number.isFinite(cost) || cost <= 0) return;
+            clean[code] = {
+                cost: cost,
+                shares: Number.isFinite(shares) && shares > 0 ? shares : 0,
+            };
+        });
+        return clean;
+    }
+
+    function collectWatchlistCostFromTabs(rawTabs) {
+        var costMap = {};
+        if (!Array.isArray(rawTabs)) return costMap;
+        rawTabs.forEach(function (tab) {
+            var items = tab && typeof tab === 'object' ? (tab.codes || tab.stocks || tab.items) : null;
+            if (!Array.isArray(items)) return;
+            items.forEach(function (item) {
+                if (!item || typeof item !== 'object') return;
+                var code = String(item.code || item.id || '').trim();
+                if (/^\d{6}$/.test(code)) costMap[code] = item;
+            });
+        });
+        return costMap;
+    }
+
+    function normalizeImportedCustomIndexCodes(rawCodes) {
+        return sanitizeCodes(rawCodes).slice(0, KEYS.CUSTOM_INDEX_MAX);
+    }
+
+    function hasOwn(obj, key) {
+        return !!obj && Object.prototype.hasOwnProperty.call(obj, key);
+    }
+
+    function getRawWatchTabsFromJson(json) {
+        if (Array.isArray(json)) return json;
+        return json.watchTabs || json.tabs || json.watchlistTabs || json.watchlist || json.groups;
+    }
+
+    function getRawCustomIndexCodesFromJson(json) {
+        if (hasOwn(json, 'customIndexCodes')) return json.customIndexCodes;
+        if (hasOwn(json, 'customIndices')) return json.customIndices;
+        if (hasOwn(json, 'customIndex')) return json.customIndex;
+        if (hasOwn(json, 'indices')) return json.indices;
+        return null;
+    }
+
+    function getImportedActiveWatchTabId(rawId, tabs) {
+        if (typeof rawId === 'string' && tabs.some(function (tab) { return tab.id === rawId; })) return rawId;
+        return tabs[0].id;
+    }
+
+    function getExportPayload() {
+        var tabs = getWatchTabs();
+        var activeWatchTabId = getImportedActiveWatchTabId(state.activeWatchTabId, tabs);
+        return {
+            version: 3,
             exportedAt: new Date().toISOString(),
-            watchTabs: getWatchTabs(),
+            watchTabs: tabs,
+            activeWatchTabId: activeWatchTabId,
+            watchlistCost: normalizeImportedWatchlistCost(state.watchlistCost, tabs),
+            customIndexCodes: normalizeImportedCustomIndexCodes(state.customIndexCodes),
         };
     }
 
@@ -134,7 +250,7 @@
         link.click();
         link.remove();
         URL.revokeObjectURL(url);
-        showDataStatus('已导出自选股数据');
+        showDataStatus('已导出自选数据');
     }
 
     function importWatchlistData(e) {
@@ -144,10 +260,26 @@
         reader.onload = function () {
             try {
                 var json = JSON.parse(String(reader.result || ''));
-                var tabs = normalizeImportedWatchTabs(json.watchTabs || json.tabs || json);
+                var rawTabs = getRawWatchTabsFromJson(json);
+                var tabs = normalizeImportedWatchTabs(rawTabs);
+                var rawCost = json.watchlistCost || json.holdingCosts || json.costs || json.costMap || json.positions || json.holdings || collectWatchlistCostFromTabs(rawTabs);
+                var watchlistCost = normalizeImportedWatchlistCost(rawCost, tabs);
+                var activeWatchTabId = getImportedActiveWatchTabId(json.activeWatchTabId, tabs);
+                var rawCustomIndexCodes = getRawCustomIndexCodesFromJson(json);
+                var customIndexCodes = rawCustomIndexCodes ? normalizeImportedCustomIndexCodes(rawCustomIndexCodes) : null;
                 saveWatchTabs(tabs);
-                state.activeWatchTabId = tabs[0].id;
+                state.watchlistCost = watchlistCost;
+                saveWatchlistCost();
+                state.activeWatchTabId = activeWatchTabId;
                 localStorage.setItem(KEYS.ACTIVE_WATCH_TAB_KEY, state.activeWatchTabId);
+                if (customIndexCodes) {
+                    state.customIndexCodes = customIndexCodes;
+                    state.customIndexCache = {};
+                    state.customIndexUpdateTime = '';
+                    saveCustomIndices();
+                    persistCustomIndexCache();
+                    persistCustomIndexUpdateTime('');
+                }
                 state.watchQuoteCache = {};
                 state.watchQuoteUpdateTime = '';
                 state.watchAlertState = {};
@@ -156,8 +288,10 @@
                 if (window.AppAlerts) window.AppAlerts.saveWatchAlertState();
                 renderWatchTabs();
                 renderWatchlist();
+                renderCustomIndex();
                 loadWatchlistData();
-                showDataStatus('已导入 ' + tabs.length + ' 个分组');
+                if (customIndexCodes) loadCustomIndexData();
+                showDataStatus('已导入 ' + tabs.length + ' 个分组' + (customIndexCodes ? '、' + customIndexCodes.length + ' 个自选指数' : ''));
             } catch (err) {
                 showDataStatus(err.message || '导入失败', 'error');
             } finally {
@@ -259,10 +393,6 @@
         localStorage.setItem(KEYS.ACTIVE_WATCH_TAB_KEY, tabId);
         renderWatchTabs();
         renderWatchlist();
-        // 切自选股分组后,资金流卡片对应的是当前分组的代码,重拉一次
-        if (window.AppMarket && typeof window.AppMarket.loadFundFlow120dData === 'function') {
-            window.AppMarket.loadFundFlow120dData(true);
-        }
     }
 
     function initWatchTabScroller() {
@@ -395,10 +525,6 @@
             showWatchStatus((match.name || code) + ' 已添加');
             renderWatchlist();
             loadSingleWatchQuote(code);
-            // 资金流卡片包含自选股列表,加股后立刻重拉
-            if (window.AppMarket && typeof window.AppMarket.loadFundFlow120dData === 'function') {
-                window.AppMarket.loadFundFlow120dData(true);
-            }
         } catch (e) {
             showWatchStatus(e.message || '没有找到匹配股票', 'error');
         } finally {
@@ -420,9 +546,6 @@
         }
         renderWatchlist();
         showWatchStatus('已移除');
-        if (window.AppMarket && typeof window.AppMarket.loadFundFlow120dData === 'function') {
-            window.AppMarket.loadFundFlow120dData(true);
-        }
     }
 
     function showWatchStatus(msg, type) {
@@ -485,9 +608,6 @@
         grid.querySelectorAll('.watchlist-fund-fill[data-w]').forEach(function (fill) {
             fill.style.width = fill.getAttribute('data-w') + '%';
         });
-        var editBtn = document.getElementById('watchlist-edit-btn');
-        if (editBtn) editBtn.style.visibility = showCost ? 'visible' : 'hidden';
-        if (!showCost) closeWatchlistEditPanel();
         if (updateTimeEl) updateTimeEl.textContent = state.watchQuoteUpdateTime || '';
     }
 
@@ -623,78 +743,6 @@
     }
 
     // ============================================================
-    // 持仓成本编辑面板
-    // ============================================================
-
-    function syncEditButtonLabel() {
-        var panel = document.getElementById('watchlist-edit-panel');
-        var btn = document.getElementById('watchlist-edit-btn');
-        if (!btn) return;
-        var isOpen = panel && !panel.hidden;
-        btn.textContent = isOpen ? '保存' : '编辑';
-        btn.classList.toggle('active', !!isOpen);
-    }
-
-    function openWatchlistEditPanel() {
-        var panel = document.getElementById('watchlist-edit-panel');
-        if (!panel) return;
-        panel.hidden = false;
-        renderWatchlistEditRows();
-        syncEditButtonLabel();
-    }
-
-    function closeWatchlistEditPanel() {
-        var panel = document.getElementById('watchlist-edit-panel');
-        if (panel) panel.hidden = true;
-        syncEditButtonLabel();
-    }
-
-    function renderWatchlistEditRows() {
-        var wrap = document.getElementById('watchlist-edit-rows');
-        if (!wrap) return;
-        var codes = getHoldingCodes();
-        if (codes.length === 0) {
-            wrap.innerHTML = '<div class="watchlist-empty">持仓股暂无股票</div>';
-            return;
-        }
-        wrap.innerHTML = codes.map(function (code) {
-            var data = state.watchQuoteCache[code];
-            var name = (data && data.name) || code;
-            var entry = state.watchlistCost[code] || {};
-            var costVal = typeof entry.cost === 'number' ? entry.cost : '';
-            var sharesVal = typeof entry.shares === 'number' ? entry.shares : '';
-            return '<div class="watchlist-edit-row" data-code="' + utils.escapeHtml(code) + '">' +
-                '<div class="watchlist-edit-row-name">' + utils.escapeHtml(name) + '<span class="edit-row-code">' + utils.escapeHtml(code) + '</span></div>' +
-                '<input type="number" step="0.01" min="0" class="edit-cost-input" placeholder="成本价" value="' + utils.escapeHtml(String(costVal)) + '" />' +
-                '<input type="number" step="1" min="0" class="edit-shares-input" placeholder="股数" value="' + utils.escapeHtml(String(sharesVal)) + '" />' +
-                '</div>';
-        }).join('');
-    }
-
-    function saveWatchlistEditPanel() {
-        var rows = document.querySelectorAll('.watchlist-edit-row');
-        rows.forEach(function (row) {
-            var code = row.getAttribute('data-code');
-            var costInput = row.querySelector('.edit-cost-input');
-            var sharesInput = row.querySelector('.edit-shares-input');
-            var cost = parseFloat(costInput.value);
-            var shares = parseFloat(sharesInput.value);
-            if (Number.isFinite(cost) && cost > 0) {
-                state.watchlistCost[code] = {
-                    cost: cost,
-                    shares: Number.isFinite(shares) && shares > 0 ? shares : 0,
-                };
-            } else {
-                delete state.watchlistCost[code];
-            }
-        });
-        saveWatchlistCost();
-        renderWatchlist();
-        closeWatchlistEditPanel();
-        showWatchStatus('成本已保存');
-    }
-
-    // ============================================================
     // 删除 / 点击绑定
     // ============================================================
 
@@ -735,11 +783,13 @@
         if (!panel || !overlay || !body || !title) return;
         if (overlay.hidden) overlay.hidden = false;
         if (panel.hidden) panel.hidden = false;
+        var cachedQuote = state.watchQuoteCache[code];
+        title.textContent = ((cachedQuote && cachedQuote.name) || code) + ' (' + code + ')';
         body.innerHTML = '<div class="list-empty">加载中...</div>';
         if (timeEl) timeEl.textContent = '';
 
         try {
-            var res = await fetch(utils.apiUrl('/fund-flow-120d', { codes: code, days: 2 }));
+            var res = await fetch(utils.apiUrl('/fund-flow-120d', { codes: code, days: 60 }));
             if (!res.ok) throw new Error('HTTP ' + res.status);
             var json = await res.json();
             if (!json.success || !json.data || !Array.isArray(json.data.items) || !json.data.items.length) {
@@ -754,21 +804,86 @@
             var prevMain = prev ? prev.mainNet : null;
             title.textContent = (item.name || code) + ' (' + code + ')';
             if (timeEl) timeEl.textContent = lastDate ? '交易日 ' + lastDate : '';
-            body.innerHTML = renderStockFundFlowBody(today, last, prevMain);
+            body.innerHTML = renderStockFundFlowBody(item, today, last, prevMain);
             body.querySelectorAll('.watchlist-fund-fill[data-w]').forEach(function (fill) {
                 fill.style.width = fill.getAttribute('data-w') + '%';
             });
         } catch (e) {
-            body.innerHTML = '<div class="list-empty">资金流加载失败: ' + utils.escapeHtml(e.message) + '</div>';
+            body.innerHTML = renderStockCostEditor(code) +
+                '<div class="list-empty">资金流加载失败: ' + utils.escapeHtml(e.message) + '</div>';
         }
     }
 
-    function renderStockFundFlowBody(today, last, prevMain) {
+    function renderStockCostEditor(code) {
+        if (!getHoldingCodes().includes(code)) return '';
+        var entry = state.watchlistCost[code] || {};
+        var costVal = typeof entry.cost === 'number' && Number.isFinite(entry.cost) ? entry.cost : '';
+        var sharesVal = typeof entry.shares === 'number' && Number.isFinite(entry.shares) ? entry.shares : '';
+        return '<form class="stock-cost-editor" data-stock-cost-form data-code="' + utils.escapeHtml(code) + '">' +
+            '<div class="stock-fund-section-title">持仓成本</div>' +
+            '<div class="stock-cost-editor-row">' +
+                '<label class="stock-cost-field">' +
+                    '<span>成本价</span>' +
+                    '<input type="number" step="0.01" min="0" data-cost-input placeholder="0.00" value="' + utils.escapeHtml(String(costVal)) + '">' +
+                '</label>' +
+                '<label class="stock-cost-field">' +
+                    '<span>股数</span>' +
+                    '<input type="number" step="1" min="0" data-shares-input placeholder="0" value="' + utils.escapeHtml(String(sharesVal)) + '">' +
+                '</label>' +
+                '<button type="submit" class="stock-cost-save-btn">保存</button>' +
+            '</div>' +
+        '</form>';
+    }
+
+    function saveStockCostFromForm(form) {
+        if (!form) return;
+        var code = form.getAttribute('data-code');
+        var costInput = form.querySelector('[data-cost-input]');
+        var sharesInput = form.querySelector('[data-shares-input]');
+        var cost = parseFloat(costInput ? costInput.value : '');
+        var shares = parseFloat(sharesInput ? sharesInput.value : '');
+        if (Number.isFinite(cost) && cost > 0) {
+            state.watchlistCost[code] = {
+                cost: cost,
+                shares: Number.isFinite(shares) && shares > 0 ? shares : 0,
+            };
+        } else {
+            delete state.watchlistCost[code];
+        }
+        saveWatchlistCost();
+        renderWatchlist();
+        showWatchStatus('成本已保存');
+    }
+
+    function renderStockFundFlowBody(item, today, last, prevMain) {
         if (!today || !last) return '<div class="list-empty">暂无当日资金流数据</div>';
 
-        var pct = typeof last.pct === 'number' ? last.pct : 0;
-        var pctCls = pct > 0 ? 'positive' : pct < 0 ? 'negative' : 'neutral';
-        var pctStr = (pct > 0 ? '+' : '') + pct.toFixed(2) + '%';
+        // 注: 不显示涨跌幅 — 弹窗用的是 daykline 接口最近交易日的 pct,与列表实时报价对不上
+
+        function cls(v) {
+            return v > 0 ? 'positive' : v < 0 ? 'negative' : 'neutral';
+        }
+
+        function flowCls(v) {
+            return v > 0 ? 'flow-positive' : v < 0 ? 'flow-negative' : 'flow-neutral';
+        }
+
+        function trendHtml(recent) {
+            var bars = [' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇'];
+            return (recent || []).map(function (r) {
+                var abs = Math.abs(r.mainNet || 0);
+                var level = 0;
+                if (abs > 5e8) level = 7;
+                else if (abs > 2e8) level = 6;
+                else if (abs > 1e8) level = 5;
+                else if (abs > 5e7) level = 4;
+                else if (abs > 1e7) level = 3;
+                else if (abs > 1e6) level = 2;
+                else if (abs > 0) level = 1;
+                return '<span class="' + flowCls(r.mainNet) + '" title="' +
+                    utils.escapeHtml(r.date) + ' ' + utils.formatYuan(r.mainNet) + '">' + bars[level] + '</span>';
+            }).join('');
+        }
 
         var items = [
             { key: 'main',   label: '主力' },
@@ -785,22 +900,45 @@
         var prevMainText = prevMain === null || prevMain === undefined
             ? ''
             : ' (昨 ' + utils.formatYuan(prevMain) + ')';
+        var summary = item.summary || {};
         var rows = items.map(function (it) {
             var v = today[it.key] || 0;
             var w = (Math.abs(v) / max * 100).toFixed(1);
-            var cls = v > 0 ? 'positive' : v < 0 ? 'negative' : 'neutral';
+            var valueClass = cls(v);
             return '<div class="watchlist-fund-row">' +
                 '<span class="watchlist-fund-label">' + it.label + '</span>' +
-                '<span class="watchlist-fund-track"><span class="watchlist-fund-fill ' + cls + '" data-w="' + w + '"></span></span>' +
-                '<span class="watchlist-fund-value ' + cls + '">' + utils.escapeHtml(utils.formatYuan(v)) + '</span>' +
+                '<span class="watchlist-fund-track"><span class="watchlist-fund-fill ' + valueClass + '" data-w="' + w + '"></span></span>' +
+                '<span class="watchlist-fund-value ' + valueClass + '">' + utils.escapeHtml(utils.formatYuan(v)) + '</span>' +
             '</div>';
         }).join('');
+        var summaryRows = [
+            { label: '5日', value: summary.main_5d || 0 },
+            { label: '20日', value: summary.main_20d || 0 },
+            { label: '60日', value: summary.main_60d || 0 },
+        ].map(function (row) {
+            var valueClass = cls(row.value);
+            return '<div class="stock-fund-summary-item">' +
+                '<span class="stock-fund-summary-label">' + row.label + '</span>' +
+                '<span class="stock-fund-summary-value ' + valueClass + '">' +
+                    utils.escapeHtml(utils.formatYuan(row.value)) +
+                '</span>' +
+            '</div>';
+        }).join('');
+        var recentTrend = trendHtml(item.recent || []);
 
-        return '<div class="stock-fund-header">' +
-            '<div class="stock-fund-pct ' + pctCls + '">' + utils.escapeHtml(pctStr) + '</div>' +
+        return renderStockCostEditor(item.code) +
+            '<div class="stock-fund-header">' +
             '<div class="stock-fund-main">主力合计 ' + utils.escapeHtml(utils.formatYuan(mainNet)) + utils.escapeHtml(prevMainText) + '</div>' +
             '</div>' +
-            '<div class="watchlist-fund-flow">' + rows + '</div>';
+            '<div class="watchlist-fund-flow">' + rows + '</div>' +
+            '<div class="stock-fund-summary">' +
+                '<div class="stock-fund-section-title">主力净流入</div>' +
+                '<div class="stock-fund-summary-grid">' + summaryRows + '</div>' +
+                '<div class="stock-fund-trend-row">' +
+                    '<span class="stock-fund-trend-label">近10日趋势</span>' +
+                    '<span class="stock-fund-trend">' + recentTrend + '</span>' +
+                '</div>' +
+            '</div>';
     }
 
     function closeStockFundFlow() {
@@ -815,6 +953,15 @@
         var overlay = document.getElementById('stock-fund-overlay');
         if (closeBtn) closeBtn.addEventListener('click', closeStockFundFlow);
         if (overlay) overlay.addEventListener('click', closeStockFundFlow);
+        var panel = document.getElementById('stock-fund-panel');
+        if (panel) {
+            panel.addEventListener('submit', function (e) {
+                var form = e.target.closest('[data-stock-cost-form]');
+                if (!form) return;
+                e.preventDefault();
+                saveStockCostFromForm(form);
+            });
+        }
         document.addEventListener('keydown', function (e) {
             if (e.key === 'Escape') {
                 var panel = document.getElementById('stock-fund-panel');
@@ -1113,16 +1260,12 @@
         persistWatchQuoteUpdateTime: persistWatchQuoteUpdateTime,
         persistCurrentChangePct: persistCurrentChangePct,
         getPrevChangePct: getPrevChangePct,
-        // edit panel
-        openWatchlistEditPanel: openWatchlistEditPanel,
-        closeWatchlistEditPanel: closeWatchlistEditPanel,
-        renderWatchlistEditRows: renderWatchlistEditRows,
-        saveWatchlistEditPanel: saveWatchlistEditPanel,
-        syncEditButtonLabel: syncEditButtonLabel,
         bindWatchRemove: bindWatchRemove,
         bindWatchItemClick: bindWatchItemClick,
         // modal
         showStockFundFlow: showStockFundFlow,
+        renderStockCostEditor: renderStockCostEditor,
+        saveStockCostFromForm: saveStockCostFromForm,
         renderStockFundFlowBody: renderStockFundFlowBody,
         closeStockFundFlow: closeStockFundFlow,
         initStockFundFlowModal: initStockFundFlowModal,

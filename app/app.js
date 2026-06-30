@@ -14,6 +14,7 @@
     var utils = window.AppUtils;
     var cache = window.AppCache;
     var KEYS = state.KEYS;
+    var isBootstrapping = true;
 
     // ============================================================
     // Settings 持久化
@@ -132,14 +133,13 @@
         }
 
         // Load tab-specific data when switching panels.
-        if (tab === 'dashboard' && window.AppMarket) {
-            window.AppMarket.loadFundFlow120dData();
-        }
         if (tab === 'signals') {
             if (window.AppSignals) {
                 window.AppSignals.loadHotRankData(window.AppSignals.getActiveHotRankSource());
-                window.AppSignals.loadDragonTigerData();
-                window.AppSignals.loadLimitUpData();
+                if (!isBootstrapping) {
+                    window.AppSignals.loadDragonTigerData();
+                    window.AppSignals.loadLimitUpData();
+                }
             }
         }
         if (tab === 'news' && window.AppNews) window.AppNews.loadNewsData();
@@ -153,23 +153,19 @@
         document.querySelectorAll('.card[data-collapsible="true"]').forEach(function (card) {
             var header = card.querySelector('.card-header');
             var body = card.querySelector('.card-body');
+            if (!header || !body) return;
             var collState = cache.readJson(KEYS.COLLAPSE_STATE_KEY, {});
             var key = getCollapsibleKey(card);
-            var isCollapsed = Object.prototype.hasOwnProperty.call(collState, key) ?
-                collState[key] === true :
-                card.getAttribute('data-collapsed') === 'true';
+            var collapsed = typeof collState[key] === 'boolean'
+                ? collState[key]
+                : card.getAttribute('data-collapsed') === 'true';
+            card.setAttribute('data-collapsed', collapsed ? 'true' : 'false');
+            body.style.display = collapsed ? 'none' : '';
 
-            if (isCollapsed) {
-                card.setAttribute('data-collapsed', 'true');
-                body.style.display = 'none';
-            } else {
-                card.setAttribute('data-collapsed', 'false');
-                body.style.display = '';
-            }
-
-            header.addEventListener('click', function () {
-                var collapsed = card.getAttribute('data-collapsed') === 'true';
-                if (collapsed) {
+            header.addEventListener('click', function (event) {
+                if (event.target.closest('button, input, select, textarea, a')) return;
+                var isCollapsed = card.getAttribute('data-collapsed') === 'true';
+                if (isCollapsed) {
                     card.setAttribute('data-collapsed', 'false');
                     body.style.display = '';
                     saveCollapsibleState(card, false);
@@ -281,6 +277,29 @@
         });
     }
 
+    function initHoldingWindowButton() {
+        var btn = document.getElementById('holding-window-btn');
+        if (!btn || !window.shell || typeof window.shell.openHoldingWindow !== 'function') return;
+
+        btn.hidden = false;
+        btn.addEventListener('click', async function () {
+            if (btn.disabled) return;
+            var oldText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = '打开中';
+            try {
+                var result = await window.shell.openHoldingWindow();
+                if (!result || !result.ok) throw new Error(result && result.error ? result.error : 'open failed');
+            } catch (e) {
+                btn.textContent = '失败';
+                setTimeout(function () { btn.textContent = oldText; }, 1200);
+            } finally {
+                btn.disabled = false;
+                if (btn.textContent !== oldText && btn.textContent !== '失败') btn.textContent = oldText;
+            }
+        });
+    }
+
     // ============================================================
     // 事件绑定 (settings 控件 + add 按钮 + 编辑按钮 + 刷新按钮)
     // ============================================================
@@ -360,22 +379,10 @@
         document.getElementById('stock-code-input').addEventListener('keydown', function (e) {
             if (e.key === 'Enter' && window.AppWatchlist) window.AppWatchlist.addStockToWatchlist();
         });
-        document.getElementById('refresh-btn').addEventListener('click', manualRefreshAll);
+        document.getElementById('refresh-btn').addEventListener('click', function () {
+            manualRefreshAll();
+        });
 
-        // 编辑按钮:默认"编辑"展开面板,再次点击变"保存"保存并关闭
-        var editBtn = document.getElementById('watchlist-edit-btn');
-        if (editBtn) {
-            editBtn.addEventListener('click', function (e) {
-                e.stopPropagation();
-                var panel = document.getElementById('watchlist-edit-panel');
-                if (!panel) return;
-                if (panel.hidden) {
-                    if (window.AppWatchlist) window.AppWatchlist.openWatchlistEditPanel();
-                } else {
-                    if (window.AppWatchlist) window.AppWatchlist.saveWatchlistEditPanel();
-                }
-            });
-        }
     }
 
     // ============================================================
@@ -458,7 +465,6 @@
         state.refreshIntervalDaily = setInterval(function () {
             // 收盘后窗口(16:00 起)触发日级数据刷新
             if (!utils.isAfterCloseDailyWindow()) return;
-            if (window.AppMarket) window.AppMarket.loadFundFlow120dData();
             if (window.AppSignals) {
                 window.AppSignals.loadDragonTigerData();
                 window.AppSignals.loadLimitUpData();
@@ -477,18 +483,18 @@
     // 加载入口:按市场阶段分支
     // ============================================================
 
-    function loadIntradayData() {
-        if (window.AppMarket) window.AppMarket.loadIndexData();
+    function loadIntradayData(force) {
+        if (window.AppMarket) window.AppMarket.loadIndexData(force);
         if (window.AppWatchlist) {
             window.AppWatchlist.loadWatchlistData();
             window.AppWatchlist.loadCustomIndexData();
         }
     }
 
-    function loadIntradaySignalData() {
+    function loadIntradaySignalData(force) {
         if (!window.AppMarket) return;
-        window.AppMarket.loadCapitalData();
-        window.AppMarket.loadSectorData();
+        window.AppMarket.loadCapitalData(force);
+        window.AppMarket.loadSectorData(force);
     }
 
     function loadAfterCloseDailyData() {
@@ -496,28 +502,6 @@
             window.AppSignals.loadDragonTigerData();
             window.AppSignals.loadLimitUpData();
         }
-        if (window.AppMarket) window.AppMarket.loadFundFlow120dData();
-    }
-
-    // 页面初始化时按市场阶段分支:
-    //  - 交易时段:正常拉取所有数据
-    //  - 收盘后窗口:只拉日级数据(龙虎/解禁/多日资金),实时数据从缓存渲染
-    //  - 其他非交易时段(盘前/午休/深夜/周末):完全不发出 fetch,仅从缓存渲染
-    function loadInitialDataByMarketPhase() {
-        if (utils.isIntradayRefreshWindow()) {
-            loadAllData();
-            return;
-        }
-
-        if (utils.isAfterCloseDailyWindow()) {
-            loadAfterCloseDailyData();
-            if (window.AppSignals) window.AppSignals.loadHotRankData(window.AppSignals.getActiveHotRankSource());
-            renderRealtimeFromCache();
-            return;
-        }
-
-        // 非交易时段(盘前/午休/深夜/周末)
-        renderRealtimeFromCache();
     }
 
     // 从 localStorage 缓存渲染大盘/资金/板块/自选股,并显示"最后一次实际更新"的时间
@@ -573,7 +557,6 @@
         loadIntradayData();
         loadIntradaySignalData();
         loadAfterCloseDailyData();
-        if (window.AppMarket) window.AppMarket.loadFundFlow120dData();
         if (window.AppSignals) window.AppSignals.loadHotRankData(window.AppSignals.getActiveHotRankSource());
         state.hasInitialDataLoaded = true;
         // News is loaded on tab switch
@@ -581,21 +564,24 @@
     }
 
     // 手动刷新:无视交易时段,重新拉一遍所有数据
-    function manualRefreshAll() {
-        if (window.AppMarket) window.AppMarket.loadIndexData();
-        if (window.AppWatchlist) window.AppWatchlist.loadWatchlistData();
+    function manualRefreshAll(label, options) {
+        options = options || {};
+        if (window.AppMarket) window.AppMarket.loadIndexData(true);
+        if (window.AppWatchlist) {
+            window.AppWatchlist.loadWatchlistData();
+            window.AppWatchlist.loadCustomIndexData();
+        }
         if (window.AppMarket) {
-            window.AppMarket.loadCapitalData();
-            window.AppMarket.loadSectorData();
-            window.AppMarket.loadFundFlow120dData(true);
+            window.AppMarket.loadCapitalData(true);
+            window.AppMarket.loadSectorData(true);
         }
         if (window.AppSignals) {
-            window.AppSignals.loadDragonTigerData(true);
-            window.AppSignals.loadLimitUpData(true);
-            window.AppSignals.loadHotRankData(window.AppSignals.getActiveHotRankSource());
+            if (!options.skipDragonTiger) window.AppSignals.loadDragonTigerData(true);
+            if (!options.skipLimitUp) window.AppSignals.loadLimitUpData(true);
+            window.AppSignals.loadHotRankData(window.AppSignals.getActiveHotRankSource(), true);
         }
         if (state.currentTab === 'news' && window.AppNews) window.AppNews.loadNewsData();
-        utils.setLastUpdated('手动刷新');
+        utils.setLastUpdated(label || '手动刷新');
     }
 
     // ============================================================
@@ -616,16 +602,19 @@
         initSettings();
         syncSettingsControls();
         initDataPanel();
+        initHoldingWindowButton();
         bindEvents();
         if (window.AppWatchlist) window.AppWatchlist.initStockFundFlowModal();
         if (window.AppSignals) window.AppSignals.initLimitUpTabs();
         initAutoRefresh();
         if (window.AppWatchlist) window.AppWatchlist.renderCustomIndex();
-        // 页面初始化:按市场阶段决定是否发请求
-        //  - 交易时段:正常拉取所有数据
-        //  - 收盘后:只拉日级数据,实时数据从缓存渲染
-        //  - 其他非交易时段:完全不 fetch,只从缓存渲染
-        loadInitialDataByMarketPhase();
+        // 页面初始化:先渲染本地缓存,再复用手动刷新入口请求一次最新数据。
+        renderRealtimeFromCache();
+        manualRefreshAll('启动刷新', {
+            skipDragonTiger: true,
+            skipLimitUp: true,
+        });
         state.hasInitialDataLoaded = true;
+        isBootstrapping = false;
     });
 })();

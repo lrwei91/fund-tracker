@@ -11,8 +11,8 @@
     // 注意: cleanupLegacyCaches() 由 readJson / readDailyDataCache 懒调用一次
     //       (modules 之间约定, 不依赖 app.js 在 init 时显式触发)
     var LEGACY_CACHE_KEYS = [
-        'fund_tracker_multiday_flow_cache',  // 已被自选股资金流替代
-        'fund_tracker_fund_flow_cache',      // v1, 已升 v2
+        'fund_tracker_multiday_flow_cache',  // 旧多日资金流缓存,已无 read 路径
+        'fund_tracker_fund_flow_cache',      // 旧个股资金流缓存,已无 read 路径
         'fund_tracker_prev_pct',             // 功能已搬到 index_prev_pct
     ];
     var _legacyCleaned = false;

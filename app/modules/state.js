@@ -57,9 +57,6 @@
     var FIXED_WATCH_TAB_IDS = ['default', 'candidate'];
     var FIXED_WATCH_TAB_NAMES = { default: '持仓股', candidate: '候选股' };
 
-    // ---------- 自选股资金流 ----------
-    var FUND_FLOW_CACHE_KEY = 'fund_tracker_fund_flow_cache_v2';
-
     // ---------- 市场热度 ----------
     var HOT_RANK_SOURCE_KEY = 'fund_tracker_hot_rank_source';
     var HOT_RANK_CACHE_THS_KEY = 'fund_tracker_hot_rank_ths_cache';
@@ -223,7 +220,6 @@
             PREV_KEY: PREV_KEY,
             FIXED_WATCH_TAB_IDS: FIXED_WATCH_TAB_IDS,
             FIXED_WATCH_TAB_NAMES: FIXED_WATCH_TAB_NAMES,
-            FUND_FLOW_CACHE_KEY: FUND_FLOW_CACHE_KEY,
             HOT_RANK_SOURCE_KEY: HOT_RANK_SOURCE_KEY,
             HOT_RANK_CACHE_THS_KEY: HOT_RANK_CACHE_THS_KEY,
             HOT_RANK_CACHE_EM_KEY: HOT_RANK_CACHE_EM_KEY,
