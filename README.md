@@ -19,7 +19,7 @@ A 股实时行情看板，部署在 Vercel 上。
 - **前端**: 原生 HTML + CSS + JavaScript
 - **实时行情**: 东方财富 / 腾讯财经等真实行情接口（通过 Vercel Serverless Function 代理，解决跨域）
 - **东财统一限流**: `api/_utils.js` 的 `emGet()` 对所有 `*.eastmoney.com` 子域调用串行限流 + 指数退避自动重试（最多 3 次，429/5xx 与网络错误触发，403 不重试）。
-- **数据持久化**: 浏览器 localStorage（自选股列表）
+- **数据持久化**: 浏览器 localStorage（自选股分组、自选指数、持仓成本）
 - **部署**: Vercel
 
 ## 项目结构
@@ -46,7 +46,7 @@ fund-tracker/
 │   ├── render-signals.js
 │   ├── render-alerts.js
 │   └── render-news.js
-├── scripts/            # 一次性工具
+├── scripts/            # 本地开发与校验工具
 │   ├── dev-server.js
 │   ├── dom-contract-test.js
 │   └── api-smoke-test.js
@@ -119,7 +119,8 @@ vercel --prod
 
 ## 自选股说明
 
-- 自选股列表保存在浏览器 `localStorage` 中，清除浏览器缓存会丢失
+- 自选股分组、自选指数、持仓成本和股数保存在浏览器 `localStorage` 中，清除浏览器缓存会丢失
+- 顶部“导入/导出”会备份/恢复自选股分组、当前分组、自选指数、持仓成本和股数
 - 实时行情通过 `/api/stock` 代理获取，不依赖任何外部前端库
 - 支持沪深 A 股代码（6位数字），自动识别 sh/sz 前缀
 - 项目不再内置静态假数据；外部真实数据源不可用时，页面会显示失败态或空态

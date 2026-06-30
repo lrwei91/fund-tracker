@@ -15,12 +15,6 @@
     var cache = window.AppCache;
     var KEYS = state.KEYS;
 
-    function initRuntimeShell() {
-        if (window.shell && typeof window.shell.openHoldingWindow === 'function') {
-            document.body.classList.add('electron-app');
-        }
-    }
-
     // ============================================================
     // Settings 持久化
     // ============================================================
@@ -30,22 +24,12 @@
         return allowedValues.includes(stringValue) ? stringValue : String(fallback);
     }
 
-    function normalizePercentValue(value, fallback) {
-        var numberValue = Number(value);
-        if (!Number.isFinite(numberValue)) numberValue = Number(fallback);
-        if (!Number.isFinite(numberValue)) numberValue = 100;
-        return Math.max(0, Math.min(100, Math.round(numberValue)));
-    }
-
     function getSettingsControls() {
         return {
             autoRefresh: document.getElementById('auto-refresh-toggle'),
             mainInterval: document.getElementById('refresh-interval-main'),
             signalInterval: document.getElementById('refresh-interval-signal'),
             newsInterval: document.getElementById('refresh-interval-news'),
-            holdingColorMode: document.getElementById('holding-color-mode'),
-            holdingOpacity: document.getElementById('holding-opacity-input'),
-            holdingOpacityValue: document.getElementById('holding-opacity-value'),
             alertEnabled: document.getElementById('alert-enabled-toggle'),
             alertThreshold: document.getElementById('alert-threshold-input'),
         };
@@ -65,8 +49,6 @@
         state.refreshSecondsMain = parseInt(normalizeOptionValue(saved.mainInterval, ['10', '30', '60'], state.refreshSecondsMain), 10);
         state.refreshSecondsSignal = parseInt(normalizeOptionValue(saved.signalInterval, ['900', '1800', '3600', '7200'], state.refreshSecondsSignal), 10);
         state.refreshSecondsNews = parseInt(normalizeOptionValue(saved.newsInterval, ['60', '600', '1800'], state.refreshSecondsNews), 10);
-        state.holdingColorMode = normalizeOptionValue(saved.holdingColorMode, ['market', 'white'], state.holdingColorMode);
-        state.holdingOpacity = normalizePercentValue(saved.holdingOpacity, state.holdingOpacity);
     }
 
     function saveSettings() {
@@ -76,8 +58,6 @@
                 mainInterval: state.refreshSecondsMain,
                 signalInterval: state.refreshSecondsSignal,
                 newsInterval: state.refreshSecondsNews,
-                holdingColorMode: state.holdingColorMode,
-                holdingOpacity: state.holdingOpacity,
             }));
         } catch (e) {}
     }
@@ -88,9 +68,6 @@
         if (controls.mainInterval) controls.mainInterval.value = String(state.refreshSecondsMain);
         if (controls.signalInterval) controls.signalInterval.value = String(state.refreshSecondsSignal);
         if (controls.newsInterval) controls.newsInterval.value = String(state.refreshSecondsNews);
-        if (controls.holdingColorMode) controls.holdingColorMode.value = state.holdingColorMode;
-        if (controls.holdingOpacity) controls.holdingOpacity.value = String(state.holdingOpacity);
-        if (controls.holdingOpacityValue) controls.holdingOpacityValue.textContent = state.holdingOpacity + '%';
         if (controls.alertEnabled) controls.alertEnabled.checked = state.alertEnabled;
         if (controls.alertThreshold) controls.alertThreshold.value = String(state.alertThreshold);
     }
@@ -156,15 +133,14 @@
     // ============================================================
 
     function initCollapsible() {
-        var isDesktopApp = document.body.classList.contains('electron-app');
         document.querySelectorAll('.card[data-collapsible="true"]').forEach(function (card) {
             var header = card.querySelector('.card-header');
             var body = card.querySelector('.card-body');
             var collState = cache.readJson(KEYS.COLLAPSE_STATE_KEY, {});
             var key = getCollapsibleKey(card);
-            var isCollapsed = isDesktopApp ? false : (Object.prototype.hasOwnProperty.call(collState, key) ?
+            var isCollapsed = Object.prototype.hasOwnProperty.call(collState, key) ?
                 collState[key] === true :
-                card.getAttribute('data-collapsed') === 'true');
+                card.getAttribute('data-collapsed') === 'true';
 
             if (isCollapsed) {
                 card.setAttribute('data-collapsed', 'true');
@@ -288,29 +264,6 @@
         });
     }
 
-    function initHoldingWindowButton() {
-        var btn = document.getElementById('holding-window-btn');
-        if (!btn || !window.shell || typeof window.shell.openHoldingWindow !== 'function') return;
-
-        btn.hidden = false;
-        btn.addEventListener('click', async function () {
-            if (btn.disabled) return;
-            var oldText = btn.textContent;
-            btn.disabled = true;
-            btn.textContent = '打开中';
-            try {
-                var result = await window.shell.openHoldingWindow();
-                if (!result || !result.ok) throw new Error(result && result.error ? result.error : 'open failed');
-            } catch (e) {
-                btn.textContent = '失败';
-                setTimeout(function () { btn.textContent = oldText; }, 1200);
-            } finally {
-                btn.disabled = false;
-                if (btn.textContent !== oldText && btn.textContent !== '失败') btn.textContent = oldText;
-            }
-        });
-    }
-
     // ============================================================
     // 事件绑定 (settings 控件 + add 按钮 + 编辑按钮 + 刷新按钮)
     // ============================================================
@@ -339,28 +292,6 @@
             saveSettings();
             if (state.isAutoRefresh) { startNewsAutoRefresh(); }
         });
-
-        var holdingColorModeSelect = document.getElementById('holding-color-mode');
-        if (holdingColorModeSelect) {
-            holdingColorModeSelect.addEventListener('change', function (e) {
-                state.holdingColorMode = normalizeOptionValue(e.target.value, ['market', 'white'], 'market');
-                e.target.value = state.holdingColorMode;
-                saveSettings();
-            });
-        }
-
-        var holdingOpacityInput = document.getElementById('holding-opacity-input');
-        var holdingOpacityValue = document.getElementById('holding-opacity-value');
-        if (holdingOpacityInput) {
-            var commitHoldingOpacity = function (e) {
-                state.holdingOpacity = normalizePercentValue(e.target.value, 100);
-                e.target.value = String(state.holdingOpacity);
-                if (holdingOpacityValue) holdingOpacityValue.textContent = state.holdingOpacity + '%';
-                saveSettings();
-            };
-            holdingOpacityInput.addEventListener('input', commitHoldingOpacity);
-            holdingOpacityInput.addEventListener('change', commitHoldingOpacity);
-        }
 
         document.getElementById('alert-enabled-toggle').addEventListener('change', function (e) {
             state.alertEnabled = !!e.target.checked;
@@ -633,7 +564,6 @@
     // ============================================================
 
     document.addEventListener('DOMContentLoaded', function () {
-        initRuntimeShell();
         loadSettings();
         initTabs();
         initCollapsible();
@@ -647,7 +577,6 @@
         initSettings();
         syncSettingsControls();
         initDataPanel();
-        initHoldingWindowButton();
         bindEvents();
         if (window.AppWatchlist) window.AppWatchlist.initStockFundFlowModal();
         if (window.AppSignals) window.AppSignals.initLimitUpTabs();

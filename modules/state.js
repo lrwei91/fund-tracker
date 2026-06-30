@@ -102,10 +102,6 @@
     var refreshSecondsSignal = 1800;
     var refreshSecondsNews = 60;
 
-    // 持仓股浮窗设置
-    var holdingColorMode = 'market';
-    var holdingOpacity = 100;
-
     // 主 tab
     var currentTab = 'dashboard';
 
@@ -250,8 +246,6 @@
         refreshSecondsMain: refreshSecondsMain,
         refreshSecondsSignal: refreshSecondsSignal,
         refreshSecondsNews: refreshSecondsNews,
-        holdingColorMode: holdingColorMode,
-        holdingOpacity: holdingOpacity,
         currentTab: currentTab,
         activeWatchTabId: activeWatchTabId,
         liveIndexData: liveIndexData,
