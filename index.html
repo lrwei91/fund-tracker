@@ -92,7 +92,6 @@
             <div class="card-header" role="button" tabindex="0">
                 <h2>自选股</h2>
                 <span class="watchlist-header-time" id="watchlist-update-time"></span>
-                <button class="watchlist-edit-btn" id="watchlist-edit-btn" type="button" aria-label="编辑持仓成本">编辑</button>
                 <span class="collapse-icon">▼</span>
             </div>
             <div class="card-body">
@@ -103,13 +102,6 @@
                 <div class="watchlist-add">
                     <input type="text" id="stock-code-input" placeholder="输入代码或股票名，如 600519 / 贵州茅台">
                     <button id="add-stock-btn" class="add-btn">添加</button>
-                </div>
-                <div class="watchlist-edit-panel" id="watchlist-edit-panel" hidden>
-                    <div class="watchlist-edit-panel-header">
-                        <div class="watchlist-edit-panel-title">编辑持仓成本 / 股数</div>
-                        <div class="watchlist-edit-panel-hint">填完后点上方"保存"</div>
-                    </div>
-                    <div class="watchlist-edit-rows" id="watchlist-edit-rows"></div>
                 </div>
                 <div class="watchlist-header-row">
                     <span class="watchlist-header-name">股票名</span>
@@ -124,29 +116,6 @@
             </div>
         </section>
 
-        <!-- 5. 自选股资金流 (push2 fflow/daykline/get;从信号 tab 上移) -->
-        <section class="card fund-flow-section" data-collapsible="true" data-collapsed="true">
-            <div class="card-header" role="button" tabindex="0">
-                <h2>自选股资金流</h2>
-                <span class="fund-flow-header-hint" id="fund-flow-hint">5/20/60 日主力净流入</span>
-                <span class="collapse-icon">▼</span>
-            </div>
-            <div class="card-body">
-                <div class="fund-flow-empty" id="fund-flow-empty">添加自选股后查看资金流</div>
-                <table class="fund-flow-table" id="fund-flow-table" hidden>
-                    <thead>
-                        <tr>
-                            <th>股票</th>
-                            <th>5日</th>
-                            <th>20日</th>
-                            <th>60日</th>
-                            <th>近10日趋势</th>
-                        </tr>
-                    </thead>
-                    <tbody id="fund-flow-rows"></tbody>
-                </table>
-            </div>
-        </section>
         </div>
 
         <div class="dashboard-column dashboard-flow-column">
