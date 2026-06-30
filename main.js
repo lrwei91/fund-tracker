@@ -49,6 +49,36 @@ let holdingWin = null
 let tray = null
 let lastHiddenWindow = 'main'
 let isClearingAndQuitting = false
+let userConfigCache = null
+
+const USER_CONFIG_VERSION = 1
+const CONFIG_STORAGE_KEYS = new Set([
+  'fund_tracker_settings',
+  'fund_tracker_active_main_tab',
+  'fund_tracker_news_source',
+  'fund_tracker_collapse_state',
+  'fund_tracker_sector_tab',
+  'fund_tracker_alert_settings',
+  'fund_tracker_watch_alert_state',
+  'fund_tracker_custom_indices',
+  'fund_tracker_watchlist_cost',
+  'fund_tracker_watchlist',
+  'fund_tracker_watchlist_tabs',
+  'fund_tracker_active_watch_tab',
+  'fund_tracker_hot_rank_source',
+  'fund_tracker_limit_up_tab',
+  'fund_tracker_holding_clown_mode',
+])
+const CONFIG_JSON_KEYS = new Set([
+  'fund_tracker_settings',
+  'fund_tracker_collapse_state',
+  'fund_tracker_alert_settings',
+  'fund_tracker_watch_alert_state',
+  'fund_tracker_custom_indices',
+  'fund_tracker_watchlist_cost',
+  'fund_tracker_watchlist',
+  'fund_tracker_watchlist_tabs',
+])
 
 const MAIN_WINDOW_CHROME = process.platform === 'darwin'
   ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 12, y: 14 } }
@@ -74,10 +104,129 @@ function getLocalDataPaths() {
   const userData = app.getPath('userData')
   return {
     userData,
+    config: getUserConfigPath(),
     localStorage: path.join(userData, 'Local Storage', 'leveldb'),
     sessionStorage: path.join(userData, 'Session Storage'),
     cache: path.join(userData, 'Cache'),
   }
+}
+
+function getUserConfigPath() {
+  return path.join(app.getPath('userData'), 'config.json')
+}
+
+function createEmptyUserConfig() {
+  return {
+    version: USER_CONFIG_VERSION,
+    updatedAt: null,
+    data: {},
+  }
+}
+
+function isValidConfigKey(key) {
+  return typeof key === 'string' && CONFIG_STORAGE_KEYS.has(key)
+}
+
+function normalizeUserConfig(raw) {
+  const config = raw && typeof raw === 'object' ? raw : {}
+  const data = config.data && typeof config.data === 'object'
+    ? config.data
+    : (config.values && typeof config.values === 'object' ? config.values : {})
+  return {
+    version: USER_CONFIG_VERSION,
+    updatedAt: typeof config.updatedAt === 'string' ? config.updatedAt : null,
+    data,
+  }
+}
+
+function readUserConfig() {
+  if (userConfigCache) return userConfigCache
+  try {
+    const filePath = getUserConfigPath()
+    if (!fs.existsSync(filePath)) {
+      userConfigCache = createEmptyUserConfig()
+      return userConfigCache
+    }
+    userConfigCache = normalizeUserConfig(JSON.parse(fs.readFileSync(filePath, 'utf8')))
+  } catch (error) {
+    console.warn('[fund-tracker] config read failed', error && error.message ? error.message : error)
+    userConfigCache = createEmptyUserConfig()
+  }
+  return userConfigCache
+}
+
+function writeUserConfig() {
+  const config = readUserConfig()
+  config.version = USER_CONFIG_VERSION
+  config.updatedAt = new Date().toISOString()
+  const filePath = getUserConfigPath()
+  const tmpPath = `${filePath}.tmp`
+  fs.mkdirSync(path.dirname(filePath), { recursive: true })
+  fs.writeFileSync(tmpPath, `${JSON.stringify(config, null, 2)}\n`)
+  fs.renameSync(tmpPath, filePath)
+}
+
+function encodeConfigValue(key, value) {
+  const stringValue = String(value == null ? '' : value)
+  if (!CONFIG_JSON_KEYS.has(key)) return stringValue
+  try {
+    return JSON.parse(stringValue)
+  } catch (_error) {
+    return stringValue
+  }
+}
+
+function decodeConfigValue(key, value) {
+  if (value === undefined || value === null) return null
+  if (CONFIG_JSON_KEYS.has(key) && typeof value !== 'string') {
+    try {
+      return JSON.stringify(value)
+    } catch (_error) {
+      return null
+    }
+  }
+  return String(value)
+}
+
+function getConfigStorageItem(key) {
+  if (!isValidConfigKey(key)) return null
+  const config = readUserConfig()
+  if (!Object.prototype.hasOwnProperty.call(config.data, key)) return null
+  return decodeConfigValue(key, config.data[key])
+}
+
+function setConfigStorageItem(key, value) {
+  if (!isValidConfigKey(key)) return false
+  const config = readUserConfig()
+  config.data[key] = encodeConfigValue(key, value)
+  writeUserConfig()
+  return true
+}
+
+function removeConfigStorageItem(key) {
+  if (!isValidConfigKey(key)) return false
+  const config = readUserConfig()
+  delete config.data[key]
+  writeUserConfig()
+  return true
+}
+
+function clearUserConfig() {
+  userConfigCache = createEmptyUserConfig()
+  writeUserConfig()
+}
+
+function registerConfigStorageIpc() {
+  ipcMain.on('config-storage-get', (event, key) => {
+    event.returnValue = getConfigStorageItem(String(key || ''))
+  })
+  ipcMain.on('config-storage-set', (event, key, value) => {
+    event.returnValue = setConfigStorageItem(String(key || ''), value)
+  })
+  ipcMain.on('config-storage-remove', (event, key) => {
+    event.returnValue = removeConfigStorageItem(String(key || ''))
+  })
+  ipcMain.handle('config-storage-path', () => getUserConfigPath())
 }
 
 function logLocalDataPaths(reason) {
@@ -177,6 +326,7 @@ async function clearRendererStorage(win) {
 async function clearLocalData() {
   const wins = BrowserWindow.getAllWindows().filter((win) => !win.isDestroyed())
   await Promise.all(wins.map(clearRendererStorage))
+  clearUserConfig()
   try {
     await session.defaultSession.clearStorageData({
       storages: [
@@ -347,7 +497,8 @@ function createMainWindow() {
   mainWin.on('minimize', (event) => {
     if (IS_WINDOWS) {
       event.preventDefault()
-      clearLocalDataAndQuit('windows-main-minimize')
+      removeTrayIcon()
+      app.quit()
       return
     }
     lastHiddenWindow = 'main'
@@ -512,6 +663,7 @@ ipcMain.handle('close-holding-window', () => {
 
 app.whenReady().then(() => {
   logLocalDataPaths('app-ready')
+  registerConfigStorageIpc()
   registerLocalProtocol()
   createMainWindow()
 

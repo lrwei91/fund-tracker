@@ -1,12 +1,12 @@
 {
   "name": "fund-tracker-electron",
-  "version": "0.1.4",
+  "version": "0.1.6",
   "description": "恭喜发财本地 Electron 桌面应用",
   "main": "main.js",
   "private": true,
   "scripts": {
     "start": "electron .",
-    "check": "node --check main.js && node --check preload.js && node --check renderer/holding-widget.js && node --check app/app.js && for f in app/api/*.js app/modules/*.js; do node --check \"$f\"; done",
+    "check": "node --check main.js && node --check preload.js && for f in renderer/*.js app/app.js app/api/*.js app/modules/*.js; do node --check \"$f\"; done",
     "version:bump": "node scripts/bump-version.js",
     "build:mac": "npm run version:bump && npm run build:mac:raw",
     "build:win": "npm run version:bump && npm run build:win:raw",

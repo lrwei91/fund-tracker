@@ -6,6 +6,12 @@ contextBridge.exposeInMainWorld('shell', {
     minimizeHoldingWindow: () => ipcRenderer.invoke('minimize-holding-window'),
     maximizeHoldingWindow: () => ipcRenderer.invoke('maximize-holding-window'),
     closeHoldingWindow: () => ipcRenderer.invoke('close-holding-window'),
+    getConfigPath: () => ipcRenderer.invoke('config-storage-path'),
+    configStorage: {
+        getItem: (key) => ipcRenderer.sendSync('config-storage-get', key),
+        setItem: (key, value) => ipcRenderer.sendSync('config-storage-set', key, String(value)),
+        removeItem: (key) => ipcRenderer.sendSync('config-storage-remove', key),
+    },
     onHoldingWidgetRefresh: (callback) => {
         if (typeof callback !== 'function') return () => {}
         const listener = () => callback()
