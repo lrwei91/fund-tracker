@@ -13,7 +13,9 @@
     var LEGACY_CACHE_KEYS = [
         'fund_tracker_multiday_flow_cache',  // 已被自选股资金流替代
         'fund_tracker_fund_flow_cache',      // v1, 已升 v2
-        'fund_tracker_prev_pct',             // 功能已搬到 index_prev_pct
+        // 注: 'fund_tracker_prev_pct' 不要放这里 — 它是自选股个股 prev 涨跌的存储
+        //      (render-watchlist.js 的 getPrevChangePct / persistCurrentChangePct 还在用,
+        //       见 modules/state.js PREV_KEY);大盘/自选指数的 prev 早就独立到 'fund_tracker_index_prev_pct'
     ];
     var _legacyCleaned = false;
     function cleanupLegacyCaches() {
